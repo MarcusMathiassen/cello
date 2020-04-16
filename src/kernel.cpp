@@ -170,69 +170,91 @@ inline static void uber(
     ushort2 tid                             METAL([[thread_position_in_grid]]),
     ushort2 gs                              METAL([[threads_per_grid]]))
 {
+
+    // #define THREAD_CACHE
+    #ifdef THREAD_CACHE
+    const u32 height = gs.y-tid.y;
+    const u32 width = gs.x-tid.x;
+    s32 thread_pixel_index = 0;
+    u32 thread_pixels[height*width];
+    #endif
+
     for (u16 y = tid.y; y < gs.y; ++y)
     for (u16 x = tid.x; x < gs.x; ++x)
     {
+        v2 uv = SS2NDC(v2(x,y), v2(uniform.viewport_size.x,uniform.viewport_size.y));
 
-    v2 uv = SS2NDC(v2(x,y), v2(uniform.viewport_size.x,uniform.viewport_size.y));
+        uv.y *= -1; // we are software rendering, so we need to flip it manually.
 
-    uv.y *= -1; // we are software rendering, so we need to flip it manually.
+        const v3 ro = uniform.camera_position;
+        const v3 rd = uniform.camera_matrix * normalize(v3(uv.x, uv.y, uniform.camera_zoom));
 
-    const v3 ro = uniform.camera_position;
-    const v3 rd = uniform.camera_matrix * normalize(v3(uv.x, uv.y, uniform.camera_zoom));
+        auto hit = castRay(ro, rd, 256, 0.0001, 1000.0);
 
-    auto hit = castRay(ro, rd, 256, 0.0001, 1000.0);
+        v3 color = v3(0,0,0);
 
-    v3 color = v3(0,0,0);
-
-    if (hit.t < 1000.0)
-    {
-        v3 P = ro+rd*hit.t;
-        v3 N = calcNormal(P);
-
-        // Direct Illumination
-        v3 directLightContrib = v3(0,0,0);
+        if (hit.t < 1000.0)
         {
-            v3 eye = ro;
-            for (s8 i = 0; i < light_info.count; ++i)
+            v3 P = ro+rd*hit.t;
+            v3 N = calcNormal(P);
+
+            // Direct Illumination
+            v3 directLightContrib = v3(0,0,0);
             {
-                const METAL(constant) auto& light = light_info.lights[i];
-                directLightContrib += directLight(light, eye, P, N);
+                v3 eye = ro;
+                for (s8 i = 0; i < light_info.count; ++i)
+                {
+                    const METAL(constant) auto& light = light_info.lights[i];
+                    directLightContrib += directLight(light, eye, P, N);
+                }
+            }
+
+            // Ambient Illumination
+            v3 ambientLightContrib = v3(0,0,0);
+            {
+                ambientLightContrib = ambientLight(P, N);
+            }
+
+            f32 sha = 1.0;
+            f32 ao = 1.0;
+            {
+                const v3 albedo = v3(1,1,1);
+                color = albedo * (sha*directLightContrib + ao*ambientLightContrib);
             }
         }
 
-        // Ambient Illumination
-        v3 ambientLightContrib = v3(0,0,0);
-        {
-            ambientLightContrib = ambientLight(P, N);
+        // Draw workload grid
+        if (x == tid.x ||
+            y == tid.y || 
+            x == uniform.viewport_size.x-1 ||
+            y == uniform.viewport_size.y-1) {
+            color = v3(0.05,0.05,0.05);
         }
 
-        f32 sha = 1.0;
-        f32 ao = 1.0;
+        // color = ACES(color);
+        color = OECF_sRGBFast(color);
+
+        const u8 R = saturate(color.x) * 255.0;
+        const u8 G = saturate(color.y) * 255.0;
+        const u8 B = saturate(color.z) * 255.0;
+        const u8 A = 255;
+
+        #ifdef THREAD_CACHE
+        thread_pixels[thread_pixel_index++] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+        #else
+        const s32 index = y * uniform.viewport_size.x + x;
+        pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+        #endif
+    }
+    #ifdef THREAD_CACHE
+    {
+        s32 thread_pixel_index = 0;
+        for (u16 y = tid.y; y < gs.y; ++y)
+        for (u16 x = tid.x; x < gs.x; ++x)
         {
-            const v3 albedo = v3(1,1,1);
-            color = albedo * (sha*directLightContrib + ao*ambientLightContrib);
+            const s32 index = y * uniform.viewport_size.x + x;
+            pixels[index] = thread_pixels[thread_pixel_index++];
         }
     }
-
-    // Draw workload grid
-    if (x == tid.x ||
-        y == tid.y || 
-        x == uniform.viewport_size.x-1 ||
-        y == uniform.viewport_size.y-1) {
-        color = v3(0.05,0.05,0.05);
-    }
-
-    // color = ACES(color);
-    color = OECF_sRGBFast(color);
-
-    const u8 R = saturate(color.x) * 255.0;
-    const u8 G = saturate(color.y) * 255.0;
-    const u8 B = saturate(color.z) * 255.0;
-    const u8 A = 255;
-
-    const s32 index = y * uniform.viewport_size.x + x;
-
-    pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
-    }
+    #endif
 }

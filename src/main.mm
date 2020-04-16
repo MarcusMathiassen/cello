@@ -451,9 +451,9 @@ internal void fill_inputs(Input_Info* inputs)
             // case NSEventTypeChangeMode:         break;
 
             // If WE do not handle it, the system does.
+            default: [NSApp sendEvent:event];
         }
 
-        [NSApp sendEvent:event];
     } while (event);
 }
 
@@ -474,11 +474,6 @@ struct Game_State
     s32 blue_offset;
     s32 green_offset;
     s32 tone_hz;
-};
-
-struct Game_Offscreen_Buffer
-{
-    u8* pixels;
 };
 
 internal void
@@ -584,9 +579,8 @@ game_update_and_render(Game_Memory *memory, Input_Info* inputs)
     auto tasks = std::vector<std::future<void>>();
     tasks.reserve(workload_count);
 
-    const s32 sqr = 2;
-    s32 col_count = (workload_count / sqr);
-    s32 row_count = (workload_count / sqr);
+    s32 col_count = 1;
+    s32 row_count = workload_count;
 
     const s32 col = width / col_count;
     const s32 row = height / row_count;
