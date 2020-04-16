@@ -18,6 +18,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#include <vector>
+
 #include "input.cpp"
 #include "cello.h"
 
@@ -73,7 +75,7 @@ internal void allocate_bitmap(Bitmap* bitmap)
     {
         free(bitmap->buffer);
     }
-    bitmap->buffer = (u8*)malloc(bitmap->info.pitch * bitmap->info.height);
+    bitmap->buffer = (u8*)malloc(bitmap->pitch * bitmap->height);
 }
 
 internal void initilize_game_state(Game_State* game_state)
@@ -95,12 +97,10 @@ internal void initilize_game_state(Game_State* game_state)
 
     game_state->bitmap = (Bitmap) {
         .buffer = NULL,
-        .info = (Bitmap_Info) {
-            .width = w,
-            .height = h,
-            .bytesPerPixel = 4,
-            .pitch = 4 * w
-        }
+        .width = w,
+        .height = h,
+        .bytesPerPixel = 4,
+        .pitch = 4 * w
     };
 
     allocate_bitmap(&game_state->bitmap);
@@ -109,6 +109,10 @@ internal void initilize_game_state(Game_State* game_state)
 b32 game_update_and_render(Game_Memory *memory)
 {
     Game_State* game_state = (Game_State*)memory->permanent_storage;
+        
+    // First time through we initialize game state to its
+    // default state.
+    //
     if (!memory->is_initialized)
     {
         initilize_game_state(game_state);
@@ -188,8 +192,8 @@ b32 game_update_and_render(Game_Memory *memory)
         }   
     }
 
-    s64 height = bitmap->info.height;
-    s64 width = bitmap->info.width;
+    s64 height = bitmap->height;
+    s64 width = bitmap->width;
 
     u32* pixels = (u32*)bitmap->buffer;
 
@@ -268,6 +272,7 @@ b32 game_update_and_render(Game_Memory *memory)
     game_state->insert_mode      = insert_mode;
     game_state->camera           = *camera;
     game_state->bitmap           = *bitmap;
+
     return is_running;
 }
 

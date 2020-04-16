@@ -20,14 +20,11 @@
 
 #include <mach/mach_time.h>
 #include <sys/mman.h> // mmap
-#include <vector>
-#include <math.h>
-#include <stdlib.h>
-#include <time.h>
 #import <AppKit/AppKit.h>
 
 #include "common.h"
-#include "cello.cpp"
+#include "input.cpp"
+#include "cello.h"
 
 global_variable NSWindow* window;
 global_variable b32 cursor_is_locked = 0;
@@ -379,22 +376,24 @@ PLATFORM_API void swap_buffers(Bitmap* bitmap)
     {
         NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc]
             initWithBitmapDataPlanes: &bitmap->buffer
-            pixelsWide:bitmap->info.width
-            pixelsHigh:bitmap->info.height
+            pixelsWide:bitmap->width
+            pixelsHigh:bitmap->height
             bitsPerSample:8
             samplesPerPixel:4
             hasAlpha:YES
             isPlanar:NO
             colorSpaceName:NSDeviceRGBColorSpace
-            bytesPerRow:bitmap->info.pitch
-            bitsPerPixel:bitmap->info.bytesPerPixel * 8] autorelease];
+            bytesPerRow:bitmap->pitch
+            bitsPerPixel:bitmap->bytesPerPixel * 8] autorelease];
 
-        NSSize imageSize = NSMakeSize(bitmap->info.width, bitmap->info.height);
+        NSSize imageSize = NSMakeSize(bitmap->width, bitmap->height);
         NSImage* image = [[[NSImage alloc] initWithSize:imageSize] autorelease];
         [image addRepresentation:rep];
-        window.contentView.layer.contents = image;
+
+        [[[window contentView] layer] setContents: image];
     }
 }
+
 PLATFORM_API u64 get_time()
 {
     mach_timebase_info_data_t info;
@@ -474,9 +473,6 @@ s32 main(s32 argc, char** argv)
         [window setTitle:@"Cello"];
         [window setDelegate:windowDelegate];
         [window setAcceptsMouseMovedEvents:YES];
-
-        // NSTrackingArea* trackingArea = [[[NSTrackingArea alloc] initWithRect:screenRect options:NSTrackingMouseMoved | NSTrackingEnabledDuringMouseDrag | NSTrackingActiveInKeyWindow owner:window.contentView userInfo:nil] autorelease];
-        // [window.contentView addTrackingArea:trackingArea];
 
         while (game_update_and_render(&game_memory));
     }

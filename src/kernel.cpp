@@ -18,7 +18,18 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#include "common.h"
 #include "shader_common.h"
+
+#ifndef FLT_MIN
+#define FLT_MIN 1.175494e-38
+#endif
+#ifndef FLT_MAX
+#define FLT_MAX 3.402823e+38
+#endif
+#ifndef FLT_EPSILON
+#define FLT_EPSILON 1.192093e-07
+#endif
 
 #ifdef __METAL__
     #define METAL(x) #x

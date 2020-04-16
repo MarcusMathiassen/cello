@@ -29,26 +29,19 @@
 struct Game_Memory
 {
     b32 is_initialized;
-
     void* permanent_storage;
     u64 permanent_storage_size;
-
     void* transient_storage;
     u64 transient_storage_size;
 };
 
 typedef struct
 {
+    u8* buffer;
     s32 width;
     s32 height;
     s32 bytesPerPixel;
     s32 pitch;
-} Bitmap_Info;
-
-typedef struct
-{
-    u8* buffer;
-    Bitmap_Info info;
 } Bitmap;
 
 void get_window_size(s32* w, s32* h);
