@@ -1,0 +1,20 @@
+#!/bin/bash
+
+output=./cello
+olvl=-O3
+compiler=clang++
+src=./src/main.mm
+src2=
+frameworks=-framework\ AppKit
+flags= #-fno-exceptions\ -Wall\ -Wextra\ -g\ -fsanitize=address\ -fno-omit-frame-pointer
+std=c++2a
+debugMode=1
+mode=-DDEV=${debugMode}
+
+rm $output
+
+# Create it 
+$compiler $src $src2 -std=$std $olvl $flags $mode $frameworks -o $output
+
+# Run it
+$output
