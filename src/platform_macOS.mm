@@ -18,52 +18,19 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#include <mach/mach_time.h>
 #include <sys/mman.h> // mmap
 #include <vector>
-#import <AppKit/AppKit.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#import <AppKit/AppKit.h>
 
 #include "common.h"
-#include "shader_common.h"
+#include "cello.cpp"
 
-#include "input.cpp"
-#include "dispatch.cpp"
-#include "camera.cpp"
-#include "kernel.cpp"
-#include "utility.cpp"
-
-global_variable b32 gIsRunning = true;
-
-global_variable s32 windowWidth = 512;
-global_variable s32 windowHeight = 512;
-
-global_variable f64 gTime;
-global_variable f64 gFps;
-global_variable f64 gDeltaTime;
-global_variable u64 g_swap_buffer_time;
-global_variable s32 threadCount = 4;
-
-global_variable b32 insert_mode = true;
-global_variable Camera gCamera;
-
-typedef struct
-{
-    s32 width;
-    s32 height;
-    s32 bytesPerPixel;
-    s32 pitch;
-} Bitmap_Info;
-
-typedef struct
-{
-    u8* buffer;
-    Bitmap_Info info;
-} Bitmap;
-
-internal Bitmap g_bitmap;
-
+global_variable NSWindow* window;
+global_variable b32 cursor_is_locked = 0;
 
 internal Key_Kind translate_keys(u16 key)
 {
@@ -199,14 +166,6 @@ internal Key_Mod translate_mods(NSUInteger flags)
     return (Key_Mod)mod;
 }
 
-internal void refreshBitmap(Bitmap* bitmap)
-{
-    if (bitmap->buffer)
-        free(bitmap->buffer);
-    bitmap->buffer = (u8*)malloc(bitmap->info.pitch * bitmap->info.height);
-}
-
-global_variable Input_Info* g_input_info;
 
 @interface MyView : NSView
 @end
@@ -234,81 +193,16 @@ global_variable Input_Info* g_input_info;
 
 @implementation WindowDelegate
 
-- (void)windowWillClose:(id)sender
-{
-    gIsRunning = false;
-}
 - (NSSize)windowWillResize:(NSWindow*)sender toSize:(NSSize)frameSize
 {
     NSLog(@"Window is resizing: (%f, %f)", frameSize.width, frameSize.height);
-
-    g_bitmap.info = (Bitmap_Info) {
-        .width = static_cast<s32>(frameSize.width),
-        .height = static_cast<s32>(frameSize.height),
-        .bytesPerPixel = 4,
-        .pitch = static_cast<s32>(4 * frameSize.width)
-    };
-
-    refreshBitmap(&g_bitmap);
-
     return frameSize;
 }
 @end
 
-internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_time)
+PLATFORM_API void get_input_info(Input_Info* inputs)
 {
-    u64 nanoseconds_passed_this_frame = get_time() - frame_start_time;
-    u64 target_nanoseconds_per_frame = (u64)(1.0 / (f64)target_framerate * 1e9) - swapbuffer_time;
-
-    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame) {
-
-        u64 nanoseconds_remaining = target_nanoseconds_per_frame - nanoseconds_passed_this_frame;
-
-        // nanosleep will sometimes oversleep, put in a buffer
-        nanoseconds_remaining = (u64)(nanoseconds_remaining * 0.7);
-
-        const struct timespec rqtp = {
-            .tv_sec = 0,
-            .tv_nsec = static_cast<long>(nanoseconds_remaining)
-        };
-        struct timespec rmtp;
-        nanosleep(&rqtp, &rmtp);
-
-        // Spin the rest of the time
-        u64 target_time = frame_start_time + target_nanoseconds_per_frame;
-        while (get_time() < target_time)
-            ;
-    }
-}
-
-internal u64 swapBuffer(NSWindow* window)
-{
-    u64 t = get_time();
-    @autoreleasepool {
-        NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:&g_bitmap.buffer
-                                                                         pixelsWide:g_bitmap.info.width
-                                                                         pixelsHigh:g_bitmap.info.height
-                                                                      bitsPerSample:8
-                                                                    samplesPerPixel:4
-                                                                           hasAlpha:YES
-                                                                           isPlanar:NO
-                                                                     colorSpaceName:NSDeviceRGBColorSpace
-                                                                        bytesPerRow:g_bitmap.info.pitch
-                                                                       bitsPerPixel:g_bitmap.info.bytesPerPixel * 8] autorelease];
-
-        NSSize imageSize = NSMakeSize(g_bitmap.info.width, g_bitmap.info.height);
-        NSImage* image = [[[NSImage alloc] initWithSize:imageSize] autorelease];
-        [image addRepresentation:rep];
-        window.contentView.layer.contents = image;
-    }
-    return get_time() - t;
-}
-
-
-global_variable s32 deltaX = 0, deltaY = 0;
-
-internal void fill_inputs(Input_Info* inputs)
-{
+    inputs->count = 0;
     NSEvent* event;
     do {
 
@@ -365,7 +259,7 @@ internal void fill_inputs(Input_Info* inputs)
             {
                 NSPoint pos;
                 
-                if (!insert_mode)
+                if (cursor_is_locked)
                 {
                     pos.x = [event deltaX];
                     pos.y = [event deltaY];
@@ -457,152 +351,55 @@ internal void fill_inputs(Input_Info* inputs)
     } while (event);
 }
 
-struct Game_Memory
+PLATFORM_API void set_cursor_visibility(b32 is_visible)
 {
-    b32 is_initialized;
+    if (is_visible)
+    {
+        cursor_is_locked = false;
+        CGDisplayShowCursor(0);
+        CGAssociateMouseAndMouseCursorPosition(1);
+    }
+    else
+    {
+        cursor_is_locked = true;
+        CGDisplayHideCursor(0);
+        CGAssociateMouseAndMouseCursorPosition(0);
+    }
+}
 
-    void* permanent_storage;
-    u64 permanent_storage_size;
-
-    void* transient_storage;
-    u64 transient_storage_size;
-
-};
-
-struct Game_State
+PLATFORM_API void get_window_size(s32* w, s32* h)
 {
-    s32 blue_offset;
-    s32 green_offset;
-    s32 tone_hz;
-};
+    *w = window.contentView.bounds.size.width;
+    *h = window.contentView.bounds.size.height;
+}
 
-internal void
-game_update_and_render(Game_Memory *memory, Input_Info* inputs)
+PLATFORM_API void swap_buffers(Bitmap* bitmap)
 {
-    Game_State* game_state = (Game_State*)memory->permanent_storage;
-    if (!memory->is_initialized)
+    @autoreleasepool
     {
-        game_state->tone_hz = 256;
+        NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc]
+            initWithBitmapDataPlanes: &bitmap->buffer
+            pixelsWide:bitmap->info.width
+            pixelsHigh:bitmap->info.height
+            bitsPerSample:8
+            samplesPerPixel:4
+            hasAlpha:YES
+            isPlanar:NO
+            colorSpaceName:NSDeviceRGBColorSpace
+            bytesPerRow:bitmap->info.pitch
+            bitsPerPixel:bitmap->info.bytesPerPixel * 8] autorelease];
+
+        NSSize imageSize = NSMakeSize(bitmap->info.width, bitmap->info.height);
+        NSImage* image = [[[NSImage alloc] initWithSize:imageSize] autorelease];
+        [image addRepresentation:rep];
+        window.contentView.layer.contents = image;
     }
-
-    if (inputs->keys[KEY_A] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_LEFT, gDeltaTime);
-    if (inputs->keys[KEY_D] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_RIGHT, gDeltaTime);
-    if (inputs->keys[KEY_S] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_BACKWARD, gDeltaTime);
-    if (inputs->keys[KEY_W] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_FORWARD, gDeltaTime);
-    if (inputs->keys[KEY_E] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_UP, gDeltaTime);
-    if (inputs->keys[KEY_Q] == KEY_PRESSED) process_keyboard(&gCamera, MOVE_DOWN, gDeltaTime);
-
-    foreach(i, inputs->count)
-    {
-        Input input = inputs->buffer[i];
-
-        switch(input.kind)
-        {
-            case INPUT_KEY:
-            {
-                Key_Kind  key   = input.key.kind;
-                Key_State state = input.key.state;
-                Key_Mod   mod   = input.key.mod;
-
-
-                if (key == KEY_ESCAPE && state == KEY_PRESSED) gIsRunning = false;
-                if (key == KEY_UP && state == KEY_PRESSED)   threadCount *= 2;
-                if (key == KEY_DOWN && state == KEY_PRESSED)
-                {
-                    threadCount /= 2;
-                    threadCount = threadCount < 2 ? 2 : threadCount;
-                }
-
-                if (key == KEY_I && state == KEY_PRESSED)
-                {
-                    insert_mode ^= 1;
-                    if (insert_mode) {
-                        CGDisplayShowCursor(0);
-                        CGAssociateMouseAndMouseCursorPosition(1);
-                    } else {
-                        CGDisplayHideCursor(0);
-                        CGAssociateMouseAndMouseCursorPosition(0);
-                    }
-                }
-            } break;
-
-            case INPUT_MOUSE: break;
-            case INPUT_SCROLL: break;
-            case INPUT_CURSOR:
-            {
-                f64 xpos = input.cursor.xpos;
-                f64 ypos = input.cursor.ypos;
-                if (!insert_mode) process_mouse_movement(&gCamera, xpos, ypos, gDeltaTime);
-            } break;
-        }   
-    }
-
-    s64 height = g_bitmap.info.height;
-    s64 width = g_bitmap.info.width;
-    s64 pitch = g_bitmap.info.pitch;
-
-    s64 xoffset = gTime * 255;
-    s64 yoffset = gTime * 255;
-
-    u32* pixels = (u32*)g_bitmap.buffer;
-
-    ushort2 gs = ushort2(width, height);
-
-    // Calculate camera matrix
-    const auto ro = gCamera.position;
-    const auto ta = gCamera.position + gCamera.front;
-
-    const auto cr = 0.0;
-    const auto cw = normalize(ta - ro);
-    const auto cp = v3(sin(cr), cos(cr), 0.0);
-    const auto cu = normalize(cross(cw, cp));
-    const auto cv = cross(cu, cw);
-    const auto matrix = mat3(cu, cv, cw);
-
-    Light_Info light_info;
-    light_info.count = 0;
-    light_info.lights[light_info.count++] = (Light) { (v3) { 1000, 1000, 0 }, (v3) { 0.7, 0.5, 0.3 }, 1000.0 };
-    light_info.lights[light_info.count++] = (Light) { (v3) { 0, 100, 0 }, (v3) { 0.7, 0.76, 0.95 }, 1000.0 };
-
-    light_info.lights[light_info.count - 1].pos = (v3) { static_cast<float>(sin(gTime) * 100.0), 100, static_cast<float>(cos(gTime) * 100) };
-
-    Uniform uniform = {
-        .camera_position = ro,
-        .camera_target = ta,
-        .camera_zoom = 1.5,
-        .camera_matrix = matrix,
-        .viewport_size = ushort2(width, height)
-    };
-
-    s32 workload_count = threadCount; //std::thread::hardware_concurrency();
-
-    auto tasks = std::vector<std::future<void>>();
-    tasks.reserve(workload_count);
-
-    s32 col_count = 1;
-    s32 row_count = workload_count;
-
-    const s32 col = width / col_count;
-    const s32 row = height / row_count;
-
-    //
-    // Uber kernel
-    //
-    foreach(y, row_count)
-    foreach(x, col_count)
-    {
-        tasks.emplace_back(
-            dispatch.async(
-                uber,
-                uniform,
-                light_info,
-                pixels,
-                ushort2(x * col, y * row),
-                ushort2((x + 1) * col, (y + 1) * row)
-            )
-        );
-    }
-    for (auto& task : tasks) task.get();
+}
+PLATFORM_API u64 get_time()
+{
+    mach_timebase_info_data_t info;
+    if (mach_timebase_info(&info) != KERN_SUCCESS) abort();
+    return (mach_absolute_time() * info.numer / info.denom);
 }
 
 s32 main(s32 argc, char** argv)
@@ -610,7 +407,6 @@ s32 main(s32 argc, char** argv)
     //
     // Allocate all the memory for the applications lifetime
     //
-
     Game_Memory game_memory = {};
 
     // These are never allocated again. They are set ONCE at the startup.
@@ -653,25 +449,16 @@ s32 main(s32 argc, char** argv)
         return 1;
     }
 
-    gCamera = defaultCamera();
-    threadCount = std::thread::hardware_concurrency();
-
     @autoreleasepool {
         NSRect screenRect = [[NSScreen mainScreen] frame];
         NSRect windowRect = NSMakeRect(
-            (screenRect.size.width - windowWidth) * 0.5,
-            (screenRect.size.height - windowHeight) * 0.5,
-            windowWidth, windowHeight);
+            (screenRect.size.width - DEFAULT_WINDOW_WIDTH) * 0.5,
+            (screenRect.size.height - DEFAULT_WINDOW_HEIGHT) * 0.5,
+            DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
 
-        NSWindow* window = [[NSWindow alloc]
-
-            initWithContentRect:windowRect
-                      styleMask:
-                          NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
-
-                        backing:NSBackingStoreBuffered
-                          defer:NO
-
+        window = [[NSWindow alloc]initWithContentRect:windowRect
+                      styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
+                      backing:NSBackingStoreBuffered defer:NO
         ];
 
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -687,47 +474,11 @@ s32 main(s32 argc, char** argv)
         [window setTitle:@"Cello"];
         [window setDelegate:windowDelegate];
         [window setAcceptsMouseMovedEvents:YES];
-        [window setRestorable:NO];
 
-        // Bitmap buffer
-        g_bitmap = (Bitmap) {
-            .buffer = NULL,
-            .info = (Bitmap_Info) {
-                .width = static_cast<s32>(window.contentView.bounds.size.width),
-                .height = static_cast<s32>(window.contentView.bounds.size.height),
-                .bytesPerPixel = 4,
-                .pitch = static_cast<s32>(4 * window.contentView.bounds.size.width) }
-        };
+        // NSTrackingArea* trackingArea = [[[NSTrackingArea alloc] initWithRect:screenRect options:NSTrackingMouseMoved | NSTrackingEnabledDuringMouseDrag | NSTrackingActiveInKeyWindow owner:window.contentView userInfo:nil] autorelease];
+        // [window.contentView addTrackingArea:trackingArea];
 
-        NSTrackingArea* trackingArea = [[[NSTrackingArea alloc] initWithRect:screenRect options:NSTrackingMouseMoved | NSTrackingEnabledDuringMouseDrag | NSTrackingActiveInKeyWindow owner:window.contentView userInfo:nil] autorelease];
-
-        [window.contentView addTrackingArea:trackingArea];
-
-        refreshBitmap(&g_bitmap);
-
-        u64 start_time = get_time();
-
-        Input_Info input_info = {};
-        while (gIsRunning)
-        {
-            u64 frame_start_time = get_time();
-            {
-                gTime = (frame_start_time - start_time) / 1e9;
-                gFps = 1.0 / gDeltaTime;
-                printf("%fs %d FPS %fms %fms swapBuffer\n", gTime, (s32)gFps, gDeltaTime * 1e3, (f64)(g_swap_buffer_time / 1e6));
-            }
-
-            input_info.count = 0;
-            fill_inputs(&input_info);
-
-            game_update_and_render(&game_memory, &input_info);
-
-            vsync(60, frame_start_time, g_swap_buffer_time);
-            g_swap_buffer_time = swapBuffer(window);
-
-
-            gDeltaTime = (get_time() - frame_start_time) / 1e9;
-        }
+        while (game_update_and_render(&game_memory));
     }
 
     return 0;

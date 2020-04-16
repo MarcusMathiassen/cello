@@ -97,4 +97,7 @@ typedef s64 b64;
 #define UNREACHABLE assert(0)
 #define UNFINISHED  assert(0)
 
+#define PLATFORM_API
+#define INTERNAL_API static
+
 #endif

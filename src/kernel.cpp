@@ -170,15 +170,6 @@ inline static void uber(
     ushort2 tid                             METAL([[thread_position_in_grid]]),
     ushort2 gs                              METAL([[threads_per_grid]]))
 {
-
-    // #define THREAD_CACHE
-    #ifdef THREAD_CACHE
-    const u32 height = gs.y-tid.y;
-    const u32 width = gs.x-tid.x;
-    s32 thread_pixel_index = 0;
-    u32 thread_pixels[height*width];
-    #endif
-
     for (u16 y = tid.y; y < gs.y; ++y)
     for (u16 x = tid.x; x < gs.x; ++x)
     {
@@ -239,22 +230,7 @@ inline static void uber(
         const u8 B = saturate(color.z) * 255.0;
         const u8 A = 255;
 
-        #ifdef THREAD_CACHE
-        thread_pixels[thread_pixel_index++] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
-        #else
         const s32 index = y * uniform.viewport_size.x + x;
         pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
-        #endif
     }
-    #ifdef THREAD_CACHE
-    {
-        s32 thread_pixel_index = 0;
-        for (u16 y = tid.y; y < gs.y; ++y)
-        for (u16 x = tid.x; x < gs.x; ++x)
-        {
-            const s32 index = y * uniform.viewport_size.x + x;
-            pixels[index] = thread_pixels[thread_pixel_index++];
-        }
-    }
-    #endif
 }
