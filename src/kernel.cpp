@@ -193,7 +193,7 @@ inline static void uber(
 
         auto hit = castRay(ro, rd, 256, 0.0001, 1000.0);
 
-        v3 color = v3(1,1,1);
+        v3 color = v3(1,1,1)*0.05;
 
         if (hit.t < 1000.0)
         {
@@ -230,7 +230,7 @@ inline static void uber(
             y == tid.y || 
             x == uniform.viewport_size.x-1 ||
             y == uniform.viewport_size.y-1) {
-            color = v3(0.05,0.05,0.05);
+            color = v3(0.05,0.95,0.05);
         }
 
         // color = ACES(color);

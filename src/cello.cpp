@@ -153,7 +153,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     {
         time = (frame_start_time - start_time) / 1e9;
         fps = 1.0 / deltaTime;
-        // printf("%fs %d FPS %fms %fms swapBuffer\n", time, (s32)fps, deltaTime * 1e3, (f64)(swap_buffer_time / 1e6));
+        printf("%fs %d FPS %fms %fms swapBuffer\n", time, (s32)fps, deltaTime * 1e3, (f64)(swap_buffer_time / 1e6));
     }
 
     // Get inputs
@@ -265,7 +265,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     }
     for (auto& task : tasks) task.get();
 
-    vsync(60, frame_start_time, swap_buffer_time);
+    vsync(30, frame_start_time, swap_buffer_time);
     swap_buffers(bitmap);
 
     deltaTime = (get_time() - frame_start_time) / 1e9;

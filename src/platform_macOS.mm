@@ -552,7 +552,10 @@ s32 main(s32 argc, char** argv)
         while (is_running)
         {
             load_game_code();
-            
+
+            // cello.cpp has global function ptr to these
+            // whenever we reload the dylib they get invalidated.
+            // so we need to reset them.
             game_memory.get_window_size       = get_window_size;
             game_memory.get_input_info        = get_input_info;
             game_memory.set_cursor_visibility = set_cursor_visibility;

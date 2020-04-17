@@ -23,8 +23,8 @@
 
 #include "common.h"
 
-#define DEFAULT_WINDOW_WIDTH 512
-#define DEFAULT_WINDOW_HEIGHT 512
+#define DEFAULT_WINDOW_WIDTH 256
+#define DEFAULT_WINDOW_HEIGHT 256
 
 struct Bitmap
 {
