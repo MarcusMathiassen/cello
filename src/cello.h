@@ -56,6 +56,6 @@ struct Game_Memory
 // void set_cursor_visibility(b32 is_visible);
 // void swap_buffers(Bitmap* buffer);
 // u64 get_time();
-b32 game_update_and_render(Game_Memory *memory);
+// b32 game_update_and_render(Game_Memory *memory);
 
 #endif

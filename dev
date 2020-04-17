@@ -5,21 +5,14 @@ platform_layer=./src/platform_macOS.mm
 olvl=-O3
 compiler=clang++
 platform_frameworks=-framework\ AppKit
-flags=-fno-exceptions\ -Wall\ -Wextra\ -g\ -fsanitize=address\ -fno-omit-frame-pointer
+flags=-fno-exceptions\ -fno-rtti #\ -Wall\ -Wextra\ -fsanitize=address\ -fno-omit-frame-pointer
 std=c++2a
 debugMode=1
 mode=-DDEV=${debugMode}
 
-# Create dynamic lib
-dylibname=./cello.cpp.dylib
-$compiler -dynamiclib ./src/cello.cpp -std=$std $olvl $flags $mode -o $dylibname
+# Build game dylib
+dylibname=./cello.dylib
+$compiler -g -dynamiclib ./src/cello.cpp -std=$std $olvl $flags $mode -o $dylibname
 
-
-output=./cello
-rm $output
-
-# Build the platform and link the dynamic lib
-$compiler $platform_layer $dylibname  -std=$std $olvl $flags $mode $platform_frameworks -o $output
-
-# Run it
-$output
+# Build platform layer
+#$compiler $platform_layer -std=$std $olvl $flags $mode $platform_frameworks -o $output

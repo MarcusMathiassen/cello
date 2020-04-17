@@ -20,14 +20,79 @@
 
 #include <mach/mach_time.h>
 #include <sys/mman.h> // mmap
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #import <AppKit/AppKit.h>
 
 #include "common.h"
 #include "input.cpp"
 #include "cello.h"
 
+#include <dlfcn.h> // dlopen, dlsym, dlerror
+
 global_variable NSWindow* window;
 global_variable b32 cursor_is_locked = 0;
+
+
+internal u64 get_file_last_time_changed(char* path)
+{
+    struct stat s;
+    stat(path, &s);
+    return s.st_mtimespec.tv_nsec;
+}
+
+global_variable b32 (*game_update_and_render)(Game_Memory* memory) = NULL;
+global_variable void* game_code_dylib = NULL;
+
+internal void unload_game_code()
+{
+    if(game_code_dylib)
+    if (dlclose(game_code_dylib)) printf("dlcose error\n");
+    printf("UNLOADED game code\n");
+}
+
+u64 time_last_changed = 0;
+internal void load_game_code()
+{
+    // Early return if the game code has not changed
+    u64 new_time_last_changed = get_file_last_time_changed("./cello.dylib");
+    if (time_last_changed == new_time_last_changed) return;
+    time_last_changed = new_time_last_changed;
+
+    // We unload the game code first
+    unload_game_code();
+
+    game_code_dylib = dlopen("./cello.dylib", RTLD_LAZY|RTLD_GLOBAL);
+    if (!game_code_dylib)
+    {
+        printf("dlopen error: %s\n", dlerror());
+        game_update_and_render = NULL;
+        return;
+    }
+
+    dlerror(); // clear error
+
+    auto dummy = (b32 (*)(Game_Memory*))dlsym(game_code_dylib, "game_update_and_render");
+
+    // Check for dlsym errors
+    char* errstr;
+    if((errstr = dlerror()))
+    {
+        printf("dlsym error: %s\n", errstr);
+        if (dlclose(game_code_dylib))
+        {
+            printf("dlcose error\n");
+        }
+        game_update_and_render = NULL;
+        return;
+    }
+
+    game_update_and_render = dummy;
+
+    printf("LOADED game code\n");
+}
+
 
 internal Key_Kind translate_keys(u16 key)
 {
@@ -482,7 +547,21 @@ s32 main(s32 argc, char** argv)
         [window setDelegate:windowDelegate];
         [window setAcceptsMouseMovedEvents:YES];
 
-        while (game_update_and_render(&game_memory));
+        
+        s32 is_running = 1;
+        while (is_running)
+        {
+            load_game_code();
+            
+            game_memory.get_window_size       = get_window_size;
+            game_memory.get_input_info        = get_input_info;
+            game_memory.set_cursor_visibility = set_cursor_visibility;
+            game_memory.swap_buffers          = swap_buffers;
+            game_memory.get_time              = get_time;
+
+            if (game_update_and_render)
+                is_running = game_update_and_render(&game_memory);
+        }
     }
 
     return 0;

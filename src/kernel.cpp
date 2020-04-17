@@ -193,7 +193,7 @@ inline static void uber(
 
         auto hit = castRay(ro, rd, 256, 0.0001, 1000.0);
 
-        v3 color = v3(0,0,0);
+        v3 color = v3(1,1,1);
 
         if (hit.t < 1000.0)
         {
@@ -220,7 +220,7 @@ inline static void uber(
             f32 sha = 1.0;
             f32 ao = 1.0;
             {
-                const v3 albedo = v3(1,1,1);
+                const v3 albedo = v3(1,1,1)*0.5;
                 color = albedo * (sha*directLightContrib + ao*ambientLightContrib);
             }
         }

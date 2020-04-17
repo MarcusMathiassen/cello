@@ -86,20 +86,23 @@ internal void allocate_bitmap(Bitmap* bitmap)
     bitmap->buffer = (u8*)malloc(bitmap->pitch * bitmap->height);
 }
 
-b32 game_update_and_render(Game_Memory *memory)
+extern "C" b32 game_update_and_render(Game_Memory *memory)
 {
     Game_State* game_state = (Game_State*)memory->permanent_storage;
         
     // First time through we initialize game state to its
     // default state.
     //
+
+    // If we have reloaded the dylib, these will be reset
+    get_window_size        = memory->get_window_size;
+    get_input_info         = memory->get_input_info;
+    set_cursor_visibility  = memory->set_cursor_visibility;
+    swap_buffers           = memory->swap_buffers;
+    get_time               = memory->get_time;
+
     if (!memory->is_initialized)
     {
-        get_window_size        = memory->get_window_size;
-        get_input_info         = memory->get_input_info;
-        set_cursor_visibility  = memory->set_cursor_visibility;
-        swap_buffers           = memory->swap_buffers;
-        get_time               = memory->get_time;
 
         game_state->is_running       = true;
         game_state->inputs           = {};
@@ -150,7 +153,7 @@ b32 game_update_and_render(Game_Memory *memory)
     {
         time = (frame_start_time - start_time) / 1e9;
         fps = 1.0 / deltaTime;
-        printf("%fs %d FPS %fms %fms swapBuffer\n", time, (s32)fps, deltaTime * 1e3, (f64)(swap_buffer_time / 1e6));
+        // printf("%fs %d FPS %fms %fms swapBuffer\n", time, (s32)fps, deltaTime * 1e3, (f64)(swap_buffer_time / 1e6));
     }
 
     // Get inputs
