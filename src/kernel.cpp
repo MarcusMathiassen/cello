@@ -42,7 +42,7 @@
 #define saturate(x) clamp(x, 0.0f, 1.0f)
 #endif
 
-inline static v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
+static v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
 {
     const v3 lightDelta = light.pos - P;
     const v3 L = normalize(lightDelta);
@@ -83,7 +83,7 @@ inline static v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v
     return (lightContrib + specularContrib + rimContrib);
 }
 
-inline static v3 Irradiance_SphericalHarmonics(v3 n)
+static v3 Irradiance_SphericalHarmonics(v3 n)
 {
     // Irradiance from "Ditch River" IBL
     // (http://www.hdrlabs.com/sibl/archive.html)
@@ -94,21 +94,21 @@ inline static v3 Irradiance_SphericalHarmonics(v3 n)
         v3(0,0,0));
 }
 
-inline static v3 ambientLight(v3 P, v3 N)
+static v3 ambientLight(v3 P, v3 N)
 {
     const v3 al = Irradiance_SphericalHarmonics(N) * (v3){0.7, 0.76, 0.85};
     return al;
 }
 
-inline static v2 SS2NDC(v2 uv, v2 res)
+static v2 SS2NDC(v2 uv, v2 res)
 {
     return (uv - res*0.5) / res.y;
 }
 
-inline static f32 sdSphere(v3 p, f32 r) { return length(p) - r; }
-inline static f32 sdPlane(v3 p, v3 n, f32 h) { return dot(p, n) - (h); }
+static f32 sdSphere(v3 p, f32 r) { return length(p) - r; }
+static f32 sdPlane(v3 p, v3 n, f32 h) { return dot(p, n) - (h); }
 
-inline static v2 map(v3 p)
+static v2 map(v3 p)
 {
     v2 result = { FLT_MAX, 0.0 };
 
@@ -120,7 +120,7 @@ inline static v2 map(v3 p)
 
 #define PIXEL_RADIUS 0.0001
 
-inline static v3 calcNormal(v3 p)
+static v3 calcNormal(v3 p)
 {
     const f32 e = PIXEL_RADIUS;
     return normalize(
@@ -133,7 +133,7 @@ inline static v3 calcNormal(v3 p)
     );
 }
 
-inline static Hit castRay(v3 ro, v3 rd, s32 steps, f32 t_min, f32 t_max)
+static Hit castRay(v3 ro, v3 rd, s32 steps, f32 t_min, f32 t_max)
 {
     f32 t = t_min;
     for (s32 i = 0; i < steps && t < t_max; ++i)
@@ -152,17 +152,17 @@ struct texture3d
     A  access;
     simd::ushort3 size;
 
-    inline simd::ushort3 index(simd::ushort3 uvw) { return uvw.x + size.x * (uvw.y + size.z * uvw.z); }
-    inline simd::float3 sample(simd::float3 uvw) { return texels[index(uvw)]; }
-    inline void write(simd::float4 data, simd::ushort3 uvw) { texels[index(uvw)] = data; }
+    simd::ushort3 index(simd::ushort3 uvw) { return uvw.x + size.x * (uvw.y + size.z * uvw.z); }
+    simd::float3 sample(simd::float3 uvw) { return texels[index(uvw)]; }
+    void write(simd::float4 data, simd::ushort3 uvw) { texels[index(uvw)] = data; }
 };
 
-inline static v3 OECF_sRGBFast(v3 linear)
+static v3 OECF_sRGBFast(v3 linear)
 {
     return pow(linear, v3(1.0/2.2,1.0/2.2,1.0/2.2));
 }
 
-inline static v3 ACES(v3 x)
+static v3 ACES(v3 x)
 {
     // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
     f32 a = 2.51;
@@ -174,7 +174,7 @@ inline static v3 ACES(v3 x)
 }
 
 METAL(kernel)
-inline static void uber(
+static void uber(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
     METAL(constant) u32* pixels             METAL([[buffer(2)]]),
@@ -220,18 +220,18 @@ inline static void uber(
             f32 sha = 1.0;
             f32 ao = 1.0;
             {
-                const v3 albedo = v3(1,1,1)*0.5;
+                const v3 albedo = v3(0.9,0.3, 0.1);
                 color = albedo * (sha*directLightContrib + ao*ambientLightContrib);
             }
         }
 
         // Draw workload grid
-        if (x == tid.x ||
-            y == tid.y || 
-            x == uniform.viewport_size.x-1 ||
-            y == uniform.viewport_size.y-1) {
-            color = v3(0.05,0.95,0.05);
-        }
+        // if (x == tid.x ||
+        //     y == tid.y || 
+        //     x == uniform.viewport_size.x-1 ||
+        //     y == uniform.viewport_size.y-1) {
+        //     color = v3(0.05,0.95,0.95);
+        // }
 
         // color = ACES(color);
         color = OECF_sRGBFast(color);

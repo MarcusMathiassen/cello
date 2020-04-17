@@ -35,18 +35,19 @@ global_variable u64 (*get_time)();
 #include "kernel.cpp"
 #include "dispatch.cpp"
 
-
 internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_time)
 {
+    u64 error_margin = MILLISECONDS(2);
     u64 nanoseconds_passed_this_frame = get_time() - frame_start_time;
-    u64 target_nanoseconds_per_frame = (u64)(1.0 / (f64)target_framerate * 1e9) - swapbuffer_time;
+    u64 target_nanoseconds_per_frame = (u64)(1.0 / (f64)target_framerate * 1e9);
 
-    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame)
+    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame-error_margin)
     {
         u64 nanoseconds_remaining = target_nanoseconds_per_frame - nanoseconds_passed_this_frame;
 
-        // nanosleep will sometimes oversleep, so give it some error margin
-        nanoseconds_remaining = (u64)(nanoseconds_remaining * 0.7);
+        // nanosleep from testing has an error margin of ~1ms+
+        // so we say about 2ms margin.
+        nanoseconds_remaining = nanoseconds_remaining - error_margin;
 
         const struct timespec rqtp = (struct timespec)
         {
@@ -54,7 +55,9 @@ internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_t
             .tv_nsec = static_cast<long>(nanoseconds_remaining)
         };
         struct timespec rmtp;
+        // u64 t = get_time();
         nanosleep(&rqtp, &rmtp);
+        // printf("nanosleep error margin: %lluns\n",(get_time()-t - nanoseconds_remaining));
 
         // Spin the rest of the time
         u64 target_time = frame_start_time + target_nanoseconds_per_frame;
@@ -135,17 +138,17 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     //
     // Pull out game state for easy access
     //
-    b32 is_running = game_state->is_running; 
-    Input_Info* inputs = &game_state->inputs; 
-    u64 start_time = game_state->start_time; 
-    u64 swap_buffer_time = game_state->swap_buffer_time; 
-    f64 time = game_state->time; 
-    f64 fps =game_state->fps;  
-    f64 deltaTime = game_state->deltaTime; 
-    s32 threadCount = game_state->threadCount; 
-    b32 insert_mode = game_state->insert_mode; 
-    Camera* camera = &game_state->camera;
-    Bitmap* bitmap = &game_state->bitmap;
+    b32 is_running       =  game_state->is_running; 
+    Input_Info* inputs   =  &memory->inputs;  //&game_state->inputs; 
+    u64 start_time       =  game_state->start_time; 
+    u64 swap_buffer_time =  game_state->swap_buffer_time; 
+    f64 time             =  game_state->time; 
+    f64 fps              =  game_state->fps;  
+    f64 deltaTime        =  game_state->deltaTime; 
+    s32 threadCount      =  game_state->threadCount; 
+    b32 insert_mode      =  game_state->insert_mode; 
+    Camera* camera       =  &game_state->camera;
+    Bitmap* bitmap       =  &game_state->bitmap;
     //
 
     // Print some frame stats
@@ -157,7 +160,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     }
 
     // Get inputs
-    get_input_info(inputs);
+    // get_input_info(inputs);
 
     if (inputs->keys[KEY_A] == KEY_PRESSED) process_keyboard(camera, MOVE_LEFT, deltaTime);
     if (inputs->keys[KEY_D] == KEY_PRESSED) process_keyboard(camera, MOVE_RIGHT, deltaTime);
@@ -230,7 +233,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     Uniform uniform = {
         .camera_position = ro,
         .camera_target = ta,
-        .camera_zoom = 1.5,
+        .camera_zoom = 1.0,
         .camera_matrix = matrix,
         .viewport_size = ushort2(width, height)
     };
@@ -247,7 +250,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     const s32 row = height / row_count;
 
     //
-    // Uber kernel
+    // Uber kernel CPU
     //
     foreach(y, row_count)
     foreach(x, col_count)
@@ -265,7 +268,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     }
     for (auto& task : tasks) task.get();
 
-    vsync(30, frame_start_time, swap_buffer_time);
+    // vsync(30, frame_start_time, swap_buffer_time);
     swap_buffers(bitmap);
 
     deltaTime = (get_time() - frame_start_time) / 1e9;

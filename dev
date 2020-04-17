@@ -4,7 +4,7 @@ platform_layer=./src/platform_macOS.mm
 
 olvl=-O3
 compiler=clang++
-platform_frameworks=-framework\ AppKit
+platform_frameworks=-framework\ AppKit\ -framework\ QuartzCore
 flags=-fno-exceptions\ -fno-rtti #\ -Wall\ -Wextra\ -fsanitize=address\ -fno-omit-frame-pointer
 std=c++2a
 debugMode=1
@@ -12,7 +12,7 @@ mode=-DDEV=${debugMode}
 
 # Build game dylib
 dylibname=./cello.dylib
-$compiler -dynamiclib ./src/cello.cpp -std=$std $olvl $flags $mode -o $dylibname
+$compiler -g -dynamiclib ./src/cello.cpp -std=$std $olvl $flags $mode -o $dylibname
 
 # Build platform layer
-#$compiler $platform_layer -std=$std $olvl $flags $mode $platform_frameworks -o ./cello
+$compiler -g $platform_layer -std=$std $olvl $flags $mode $platform_frameworks -o ./cello

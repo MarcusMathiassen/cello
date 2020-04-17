@@ -43,6 +43,8 @@ struct Game_Memory
     void* transient_storage;
     u64 transient_storage_size;
 
+    Input_Info inputs;
+
     void (*get_window_size)(s32* w, s32* h);
     void (*get_input_info)(Input_Info* inputs);
     void (*set_cursor_visibility)(b32 is_visible);

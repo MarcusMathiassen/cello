@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#import <QuartzCore/QuartzCore.h>
 #import <AppKit/AppKit.h>
 
 #include "common.h"
@@ -53,7 +55,7 @@ internal void unload_game_code()
 }
 
 u64 time_last_changed = 0;
-internal void load_game_code()
+internal void maybe_load_game_code()
 {
     // Early return if the game code has not changed
     u64 new_time_last_changed = get_file_last_time_changed("./cello.dylib");
@@ -467,6 +469,40 @@ PLATFORM_API u64 get_time()
     return (mach_absolute_time() * info.numer / info.denom);
 }
 
+
+global_variable b32 is_running = 1;
+
+internal CVReturn displayCallback(CVDisplayLinkRef displayLink,
+    const CVTimeStamp *inNow, const CVTimeStamp *inOutputTime,
+    CVOptionFlags flagsIn, CVOptionFlags *flagsOut,
+    void *displayLinkContext)
+{
+    Game_Memory *game_memory = (Game_Memory*)displayLinkContext;
+
+    // maybe_load_game_code();
+
+    // cello.cpp has global function ptr to these
+    // whenever we reload the dylib they get invalidated.
+    // so we need to reset them.
+    // game_memory->get_window_size       = get_window_size;
+    // game_memory->get_input_info        = get_input_info;
+    // game_memory->set_cursor_visibility = set_cursor_visibility;
+    // game_memory->swap_buffers          = swap_buffers;
+    // game_memory->get_time              = get_time;
+
+    // get_input_info(&game_memory->inputs);
+
+    if (game_update_and_render)
+        is_running = game_update_and_render(game_memory);
+
+    if(!is_running)
+    {
+        CVDisplayLinkRelease(displayLink);
+    }
+
+    return kCVReturnSuccess;
+}
+
 s32 main(s32 argc, char** argv)
 {
     //
@@ -547,11 +583,25 @@ s32 main(s32 argc, char** argv)
         [window setDelegate:windowDelegate];
         [window setAcceptsMouseMovedEvents:YES];
 
-        
-        s32 is_running = 1;
+
+        CVDisplayLinkRef    displayLink;
+        CGDirectDisplayID   displayID = CGMainDisplayID();
+
+        CVReturn            error = kCVReturnSuccess;
+        error = CVDisplayLinkCreateWithCGDisplay(displayID, &displayLink);
+        if (error)
+        {
+            NSLog(@"DisplayLink created with error:%d", error);
+            displayLink = NULL;
+        }
+        CVDisplayLinkSetOutputCallback(displayLink, displayCallback, &game_memory);
+        CVDisplayLinkStart(displayLink);
+
+        // [NSApp run];
+
         while (is_running)
         {
-            load_game_code();
+            maybe_load_game_code();
 
             // cello.cpp has global function ptr to these
             // whenever we reload the dylib they get invalidated.
@@ -562,8 +612,9 @@ s32 main(s32 argc, char** argv)
             game_memory.swap_buffers          = swap_buffers;
             game_memory.get_time              = get_time;
 
-            if (game_update_and_render)
-                is_running = game_update_and_render(&game_memory);
+            get_input_info(&game_memory.inputs);
+            // if (game_update_and_render)
+            //     is_running = game_update_and_render(&game_memory);
         }
     }
 
