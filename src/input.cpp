@@ -322,6 +322,7 @@ internal const char* key_to_str(Key_Kind key)
     case KEY_KP_EQUAL:      return "KEY_KP_EQUAL";
     case KEY_KP_MULTIPLY:   return "KEY_KP_MULTIPLY";
     case KEY_KP_SUBTRACT:   return "KEY_KP_SUBTRACT";
+    case _KEY_KIND_COUNT_:  return "_KEY_KIND_COUNT_";
     }
     return NULL;
 }

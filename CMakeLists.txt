@@ -11,7 +11,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/)
 
 #Load sources
 file(GLOB SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.mm
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/platform_macOS.mm
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/cello.cpp
   )
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
   # ${CMAKE_CURRENT_SOURCE_DIR}/src/*.metal

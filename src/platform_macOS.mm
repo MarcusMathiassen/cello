@@ -375,21 +375,22 @@ PLATFORM_API void swap_buffers(Bitmap* bitmap)
     @autoreleasepool
     {
         NSBitmapImageRep* rep = [[[NSBitmapImageRep alloc]
-            initWithBitmapDataPlanes: &bitmap->buffer
-            pixelsWide:bitmap->width
-            pixelsHigh:bitmap->height
-            bitsPerSample:8
-            samplesPerPixel:4
-            hasAlpha:YES
-            isPlanar:NO
-            colorSpaceName:NSDeviceRGBColorSpace
-            bytesPerRow:bitmap->pitch
-            bitsPerPixel:bitmap->bytesPerPixel * 8] autorelease];
+            initWithBitmapDataPlanes:   &bitmap->buffer
+            pixelsWide:                 bitmap->width
+            pixelsHigh:                 bitmap->height
+            bitsPerSample:              8
+            samplesPerPixel:            4
+            hasAlpha:                   YES
+            isPlanar:                   NO
+            colorSpaceName:             NSDeviceRGBColorSpace
+            bytesPerRow:                bitmap->pitch
+            bitsPerPixel:               bitmap->bytesPerPixel * 8
+        ] autorelease];
 
         NSSize imageSize = NSMakeSize(bitmap->width, bitmap->height);
-        NSImage* image = [[[NSImage alloc] initWithSize:imageSize] autorelease];
-        [image addRepresentation:rep];
+        NSImage* image = [[[NSImage alloc] initWithSize: imageSize] autorelease];
 
+        [image addRepresentation: rep];
         [[[window contentView] layer] setContents: image];
     }
 }
@@ -447,6 +448,13 @@ s32 main(s32 argc, char** argv)
         printf("mmap error: %d %s\n", errno, strerror(errno));
         return 1;
     }
+
+    // Setup platform functions
+    game_memory.get_window_size       = get_window_size;
+    game_memory.get_input_info        = get_input_info;
+    game_memory.set_cursor_visibility = set_cursor_visibility;
+    game_memory.swap_buffers          = swap_buffers;
+    game_memory.get_time              = get_time;
 
     @autoreleasepool {
         NSRect screenRect = [[NSScreen mainScreen] frame];

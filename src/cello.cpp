@@ -20,27 +20,36 @@
 
 #include <vector>
 
+#include "common.h"
 #include "input.cpp"
 #include "cello.h"
+
+global_variable void (*get_window_size)(s32* w, s32* h);
+global_variable void (*get_input_info)(Input_Info* inputs);
+global_variable void (*set_cursor_visibility)(b32 is_visible);
+global_variable void (*swap_buffers)(Bitmap* buffer);
+global_variable u64 (*get_time)();
 
 #include "shader_common.h"
 #include "camera.cpp"
 #include "kernel.cpp"
 #include "dispatch.cpp"
 
+
 internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_time)
 {
     u64 nanoseconds_passed_this_frame = get_time() - frame_start_time;
     u64 target_nanoseconds_per_frame = (u64)(1.0 / (f64)target_framerate * 1e9) - swapbuffer_time;
 
-    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame) {
-
+    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame)
+    {
         u64 nanoseconds_remaining = target_nanoseconds_per_frame - nanoseconds_passed_this_frame;
 
-        // nanosleep will sometimes oversleep, put in a buffer
+        // nanosleep will sometimes oversleep, so give it some error margin
         nanoseconds_remaining = (u64)(nanoseconds_remaining * 0.7);
 
-        const struct timespec rqtp = {
+        const struct timespec rqtp = (struct timespec)
+        {
             .tv_sec = 0,
             .tv_nsec = static_cast<long>(nanoseconds_remaining)
         };
@@ -49,8 +58,7 @@ internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_t
 
         // Spin the rest of the time
         u64 target_time = frame_start_time + target_nanoseconds_per_frame;
-        while (get_time() < target_time)
-            ;
+        while (get_time() < target_time);
     }
 }
 
@@ -78,34 +86,6 @@ internal void allocate_bitmap(Bitmap* bitmap)
     bitmap->buffer = (u8*)malloc(bitmap->pitch * bitmap->height);
 }
 
-internal void initilize_game_state(Game_State* game_state)
-{
-    game_state->is_running       = true;
-    game_state->inputs           = {};
-    game_state->start_time       = get_time();
-    game_state->swap_buffer_time = 0;
-    game_state->time             = 0;
-    game_state->fps              = 0;
-    game_state->deltaTime        = 0;
-    game_state->threadCount      = std::thread::hardware_concurrency();
-    game_state->insert_mode      = true;
-    game_state->camera           = defaultCamera();
-
-
-    s32 w,h;
-    get_window_size(&w, &h);
-
-    game_state->bitmap = (Bitmap) {
-        .buffer = NULL,
-        .width = w,
-        .height = h,
-        .bytesPerPixel = 4,
-        .pitch = 4 * w
-    };
-
-    allocate_bitmap(&game_state->bitmap);
-}
-
 b32 game_update_and_render(Game_Memory *memory)
 {
     Game_State* game_state = (Game_State*)memory->permanent_storage;
@@ -115,7 +95,37 @@ b32 game_update_and_render(Game_Memory *memory)
     //
     if (!memory->is_initialized)
     {
-        initilize_game_state(game_state);
+        get_window_size        = memory->get_window_size;
+        get_input_info         = memory->get_input_info;
+        set_cursor_visibility  = memory->set_cursor_visibility;
+        swap_buffers           = memory->swap_buffers;
+        get_time               = memory->get_time;
+
+        game_state->is_running       = true;
+        game_state->inputs           = {};
+        game_state->start_time       = get_time();
+        game_state->swap_buffer_time = 0;
+        game_state->time             = 0;
+        game_state->fps              = 0;
+        game_state->deltaTime        = 0;
+        game_state->threadCount      = std::thread::hardware_concurrency();
+        game_state->insert_mode      = true;
+        game_state->camera           = defaultCamera();
+
+        s32 w,h;
+        get_window_size(&w, &h);
+
+        game_state->bitmap = (Bitmap)
+        {
+            .buffer = NULL,
+            .width = w,
+            .height = h,
+            .bytesPerPixel = 4,
+            .pitch = 4 * w
+        };
+
+        allocate_bitmap(&game_state->bitmap);
+
         memory->is_initialized = true;
     }
 
@@ -161,10 +171,9 @@ b32 game_update_and_render(Game_Memory *memory)
         {
             case INPUT_KEY:
             {
-                Key_Kind  key   = input.key.kind;
-                Key_State state = input.key.state;
-                Key_Mod   mod   = input.key.mod;
-
+                const Key_Kind  key   = input.key.kind;
+                const Key_State state = input.key.state;
+                const Key_Mod   mod   = input.key.mod;
 
                 if (key == KEY_ESCAPE && state == KEY_PRESSED) is_running = false;
                 if (key == KEY_UP && state == KEY_PRESSED)   threadCount *= 2;

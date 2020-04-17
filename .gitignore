@@ -3,3 +3,6 @@ cello
 Debug
 Build
 build
+*.dSym
+*.dylib
+

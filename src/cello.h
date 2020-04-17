@@ -26,6 +26,15 @@
 #define DEFAULT_WINDOW_WIDTH 512
 #define DEFAULT_WINDOW_HEIGHT 512
 
+struct Bitmap
+{
+    u8* buffer;
+    s32 width;
+    s32 height;
+    s32 bytesPerPixel;
+    s32 pitch;
+};
+
 struct Game_Memory
 {
     b32 is_initialized;
@@ -33,22 +42,20 @@ struct Game_Memory
     u64 permanent_storage_size;
     void* transient_storage;
     u64 transient_storage_size;
+
+    void (*get_window_size)(s32* w, s32* h);
+    void (*get_input_info)(Input_Info* inputs);
+    void (*set_cursor_visibility)(b32 is_visible);
+    void (*swap_buffers)(Bitmap* buffer);
+    u64 (*get_time)();
 };
 
-typedef struct
-{
-    u8* buffer;
-    s32 width;
-    s32 height;
-    s32 bytesPerPixel;
-    s32 pitch;
-} Bitmap;
 
-void get_window_size(s32* w, s32* h);
-void get_input_info(Input_Info* inputs);
-void set_cursor_visibility(b32 is_visible);
-void swap_buffers(Bitmap* buffer);
-u64 get_time();
+// void get_window_size(s32* w, s32* h);
+// void get_input_info(Input_Info* inputs);
+// void set_cursor_visibility(b32 is_visible);
+// void swap_buffers(Bitmap* buffer);
+// u64 get_time();
 b32 game_update_and_render(Game_Memory *memory);
 
 #endif
