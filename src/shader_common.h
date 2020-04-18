@@ -52,6 +52,13 @@ using simd::min;
 using simd::exp2;
 using simd::distance;
 using simd::pow;
+using simd::fract;
+using simd::round;
+using simd::floor;
+using simd::fmod;
+using simd::fabs;
+using simd::sign;
+using simd::mix;
 
 // typedef vector_half2 h2;
 // typedef vector_half3 h3;
@@ -78,17 +85,118 @@ typedef struct {
     s16 steps;
 } Hit;
 
-typedef struct {
+#define METAL_INTERNAL static inline
+
+#ifndef FLT_MIN
+#define FLT_MIN 1.175494e-38
+#endif
+#ifndef FLT_MAX
+#define FLT_MAX 3.402823e+38
+#endif
+#ifndef FLT_EPSILON
+#define FLT_EPSILON 1.192093e-07
+#endif
+
+#ifdef __METAL__
+    #define METAL(x) #x
+#else
+    #define METAL(x)
+#endif
+
+#ifndef __METAL__
+#define clamp(x,a,b) simd_clamp(x,a,b)
+#define saturate(x) clamp(x, 0.0f, 1.0f)
+#endif
+
+template <class T, class A>
+struct texture3d
+{
+    T* texels;
+    A  access;
+    simd::ushort3 size;
+
+    simd::ushort3 index(simd::ushort3 uvw) { return uvw.x + size.x * (uvw.y + size.z * uvw.z); }
+    simd::float3 sample(simd::float3 uvw) { return texels[index(uvw)]; }
+    void write(simd::float4 data, simd::ushort3 uvw) { texels[index(uvw)] = data; }
+};
+
+enum OpKind
+{
+  SET_SIZE,
+  SET_MATERIAL_ID,
+  SET_ROUNDING,
+
+  OP_UNION,
+  OP_SUBTRACT,
+  OP_INTERSECT,
+
+  OP_SMOOTH_UNION,
+  OP_SMOOTH_SUBTRACT,
+  OP_SMOOTH_INTERSECT,
+
+  OP_PLACE_NEXT_OBJECT_AT_MOUSE_HIT,
+  OP_ROUNDED,
+  OP_ANNULAR,
+  OP_REP,
+  OP_ROTATE_X,
+  OP_ROTATE_Y,
+  OP_ROTATE_Z,
+  OP_RESET,
+  _NONE_,
+
+  SD_PLANE,
+  SD_SPHERE,
+  SD_BOX,
+  SD_ROUND_BOX,
+  SD_TORUS,
+  SD_CAPPED_CYLINDER,
+  
+  SD_TRIANGLE,
+};
+
+
+struct Edit
+{
+  OpKind kind;
+  v3 data;
+};
+
+#define MAX_EDITS ((1024 * 4-sizeof(s8)) / sizeof(Edit))
+struct Edit_Info
+{
+  s8 count;
+  Edit edits[MAX_EDITS];
+};
+
+enum MaterialKind { DIFF, SPEC, REFR };
+struct Material
+{
+  v3 color;
+  MaterialKind kind;
+  f32 emission;
+  f32 roughness;
+  f32 metallic;
+};
+
+struct Light
+{
   v3 pos;
   v3 color;
   f32 intensity;
-} Light;
+};
 
 #define MAX_LIGHTS ((1024 * 4-sizeof(s8)) / sizeof(Light))
-typedef struct {
+struct Light_Info
+{
   s8 count;
   Light lights[MAX_LIGHTS];
-} Light_Info;
+};
+
+struct Scene
+{
+    METAL(constant) Edit_Info& edit_info;
+};
+
 
 typedef struct
 {

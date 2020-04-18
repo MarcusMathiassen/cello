@@ -411,7 +411,6 @@ PLATFORM_API void get_input_info(Input_Info* inputs)
             // If WE do not handle it, the system does.
             default: [NSApp sendEvent:event];
         }
-
     } while (event);
 }
 
@@ -583,19 +582,18 @@ s32 main(s32 argc, char** argv)
         [window setDelegate:windowDelegate];
         [window setAcceptsMouseMovedEvents:YES];
 
+        // CVDisplayLinkRef    displayLink;
+        // CGDirectDisplayID   displayID = CGMainDisplayID();
 
-        CVDisplayLinkRef    displayLink;
-        CGDirectDisplayID   displayID = CGMainDisplayID();
-
-        CVReturn            error = kCVReturnSuccess;
-        error = CVDisplayLinkCreateWithCGDisplay(displayID, &displayLink);
-        if (error)
-        {
-            NSLog(@"DisplayLink created with error:%d", error);
-            displayLink = NULL;
-        }
-        CVDisplayLinkSetOutputCallback(displayLink, displayCallback, &game_memory);
-        CVDisplayLinkStart(displayLink);
+        // CVReturn            error = kCVReturnSuccess;
+        // error = CVDisplayLinkCreateWithCGDisplay(displayID, &displayLink);
+        // if (error)
+        // {
+        //     NSLog(@"DisplayLink created with error:%d", error);
+        //     displayLink = NULL;
+        // }
+        // CVDisplayLinkSetOutputCallback(displayLink, displayCallback, &game_memory);
+        // CVDisplayLinkStart(displayLink);
 
         // [NSApp run];
 
@@ -613,8 +611,8 @@ s32 main(s32 argc, char** argv)
             game_memory.get_time              = get_time;
 
             get_input_info(&game_memory.inputs);
-            // if (game_update_and_render)
-            //     is_running = game_update_and_render(&game_memory);
+            if (game_update_and_render)
+                is_running = game_update_and_render(&game_memory);
         }
     }
 

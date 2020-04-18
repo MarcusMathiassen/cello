@@ -17,32 +17,9 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
+#include "kernel_common.cpp"
 
-#include "common.h"
-#include "shader_common.h"
-
-#ifndef FLT_MIN
-#define FLT_MIN 1.175494e-38
-#endif
-#ifndef FLT_MAX
-#define FLT_MAX 3.402823e+38
-#endif
-#ifndef FLT_EPSILON
-#define FLT_EPSILON 1.192093e-07
-#endif
-
-#ifdef __METAL__
-    #define METAL(x) #x
-#else
-    #define METAL(x)
-#endif
-
-#ifndef __METAL__
-#define clamp(x,a,b) simd_clamp(x,(f32)a,(f32)b)
-#define saturate(x) clamp(x, 0.0f, 1.0f)
-#endif
-
-static v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
+METAL_INTERNAL v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
 {
     const v3 lightDelta = light.pos - P;
     const v3 L = normalize(lightDelta);
@@ -83,7 +60,7 @@ static v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
     return (lightContrib + specularContrib + rimContrib);
 }
 
-static v3 Irradiance_SphericalHarmonics(v3 n)
+METAL_INTERNAL v3 Irradiance_SphericalHarmonics(v3 n)
 {
     // Irradiance from "Ditch River" IBL
     // (http://www.hdrlabs.com/sibl/archive.html)
@@ -94,90 +71,19 @@ static v3 Irradiance_SphericalHarmonics(v3 n)
         v3(0,0,0));
 }
 
-static v3 ambientLight(v3 P, v3 N)
+METAL_INTERNAL v3 ambientLight(v3 P, v3 N)
 {
     const v3 al = Irradiance_SphericalHarmonics(N) * (v3){0.7, 0.76, 0.85};
     return al;
 }
 
-static v2 SS2NDC(v2 uv, v2 res)
-{
-    return (uv - res*0.5) / res.y;
-}
-
-static f32 sdSphere(v3 p, f32 r) { return length(p) - r; }
-static f32 sdPlane(v3 p, v3 n, f32 h) { return dot(p, n) - (h); }
-
-static v2 map(v3 p)
-{
-    v2 result = { FLT_MAX, 0.0 };
-
-    f32 d = sdSphere(p, 1.0);
-    result.x = d;
-
-    return result;
-}
-
-#define PIXEL_RADIUS 0.0001
-
-static v3 calcNormal(v3 p)
-{
-    const f32 e = PIXEL_RADIUS;
-    return normalize(
-        (v3)
-        {
-            map(p+(v3){e,0,0}).x - map(p-(v3){e,0,0}).x,
-            map(p+(v3){0,e,0}).x - map(p-(v3){0,e,0}).x,
-            map(p+(v3){0,0,e}).x - map(p-(v3){0,0,e}).x
-        }
-    );
-}
-
-static Hit castRay(v3 ro, v3 rd, s32 steps, f32 t_min, f32 t_max)
-{
-    f32 t = t_min;
-    for (s32 i = 0; i < steps && t < t_max; ++i)
-    {
-        const v2 r = map(ro+rd*t);
-        if (r.x < t_min) return (Hit){ (t), (s16)(r.y), (s16)(i) };
-        t += r.x;
-    }
-    return (Hit){ FLT_MAX, 0, 0 };
-}
-
-template <class T, class A>
-struct texture3d
-{
-    T* texels;
-    A  access;
-    simd::ushort3 size;
-
-    simd::ushort3 index(simd::ushort3 uvw) { return uvw.x + size.x * (uvw.y + size.z * uvw.z); }
-    simd::float3 sample(simd::float3 uvw) { return texels[index(uvw)]; }
-    void write(simd::float4 data, simd::ushort3 uvw) { texels[index(uvw)] = data; }
-};
-
-static v3 OECF_sRGBFast(v3 linear)
-{
-    return pow(linear, v3(1.0/2.2,1.0/2.2,1.0/2.2));
-}
-
-static v3 ACES(v3 x)
-{
-    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
-    f32 a = 2.51;
-    f32 b = 0.03;
-    f32 c = 2.43;
-    f32 d = 0.59;
-    f32 e = 0.14;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
-}
-
-METAL(kernel)
-static void uber(
+METAL_INTERNAL METAL(kernel) void
+uber(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
-    METAL(constant) u32* pixels             METAL([[buffer(2)]]),
+    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
+    METAL(device)   u32* pixels             METAL([[buffer(4)]]),
     ushort2 tid                             METAL([[thread_position_in_grid]]),
     ushort2 gs                              METAL([[threads_per_grid]]))
 {
@@ -191,37 +97,57 @@ static void uber(
         const v3 ro = uniform.camera_position;
         const v3 rd = uniform.camera_matrix * normalize(v3(uv.x, uv.y, uniform.camera_zoom));
 
-        auto hit = castRay(ro, rd, 256, 0.0001, 1000.0);
+        const auto scene = (Scene) { edit_info };
 
-        v3 color = v3(1,1,1)*0.05;
+        const f32 farClip = (distance(ro, rd * v3(20,20,20)));
+        const s32 maxStepCount = 256;
+        const f32 nearClip = PIXEL_RADIUS;
 
-        if (hit.t < 1000.0)
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+
+        v3 color = v3(1,1,1)*0.001;
+
+        if (hit.t < farClip)
         {
             v3 P = ro+rd*hit.t;
-            v3 N = calcNormal(P);
+            v3 N = calcNormal(P, scene);
+
+            // Shadow
+            f32 sha = 0.0;
+            {
+                // for (s8 i = 0; i < light_info.count; ++i)
+                // {
+                const METAL(constant) auto& light = light_info.lights[0]; // only the sun casts shadow
+                const v3 L = normalize(light.pos - P);
+                sha += shadow(P+N*PIXEL_RADIUS, L, nearClip, farClip, scene);
+                // }
+            }
+
+            // Ambient Occlusion
+            f32 ao = 1.0;
+            {
+                ao = ambientOcclusion(P, N, scene);
+            }
 
             // Direct Illumination
-            v3 directLightContrib = v3(0,0,0);
+            v3 directLightContrib = {};
             {
-                v3 eye = ro;
-                for (s8 i = 0; i < light_info.count; ++i)
-                {
+                const v3 eye = ro;
+                for (s8 i = 0; i < light_info.count; ++i) {
                     const METAL(constant) auto& light = light_info.lights[i];
                     directLightContrib += directLight(light, eye, P, N);
                 }
             }
 
             // Ambient Illumination
-            v3 ambientLightContrib = v3(0,0,0);
+            v3 ambientLightContrib = {};
             {
                 ambientLightContrib = ambientLight(P, N);
             }
 
-            f32 sha = 1.0;
-            f32 ao = 1.0;
             {
-                const v3 albedo = v3(0.9,0.3, 0.1);
-                color = albedo * (sha*directLightContrib + ao*ambientLightContrib);
+                const v3 albedo = materials[hit.material_id].color;
+                color = albedo * (sha * directLightContrib + ao * ambientLightContrib);
             }
         }
 
@@ -230,11 +156,11 @@ static void uber(
         //     y == tid.y || 
         //     x == uniform.viewport_size.x-1 ||
         //     y == uniform.viewport_size.y-1) {
-        //     color = v3(0.05,0.95,0.95);
+        //     color = v3(1,1,1);
         // }
 
-        // color = ACES(color);
-        color = OECF_sRGBFast(color);
+        // color = OECF_sRGBFast(color);
+        color = ACES(color);
 
         const u8 R = saturate(color.x) * 255.0;
         const u8 G = saturate(color.y) * 255.0;

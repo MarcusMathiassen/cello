@@ -5,7 +5,7 @@ platform_layer=./src/platform_macOS.mm
 olvl=-O3
 compiler=clang++
 platform_frameworks=-framework\ AppKit\ -framework\ QuartzCore
-flags=-fno-exceptions\ -fno-rtti #\ -Wall\ -Wextra\ -fsanitize=address\ -fno-omit-frame-pointer
+flags=-fno-exceptions\ -fno-rtti\ -Wno-writable-strings #\ -Wall\ -Wextra\ -fsanitize=address\ -fno-omit-frame-pointer
 std=c++2a
 debugMode=1
 mode=-DDEV=${debugMode}

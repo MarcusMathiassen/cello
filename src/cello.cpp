@@ -37,17 +37,16 @@ global_variable u64 (*get_time)();
 
 internal void vsync(s32 target_framerate, u64 frame_start_time, u64 swapbuffer_time)
 {
-    u64 error_margin = MILLISECONDS(2);
     u64 nanoseconds_passed_this_frame = get_time() - frame_start_time;
     u64 target_nanoseconds_per_frame = (u64)(1.0 / (f64)target_framerate * 1e9);
 
-    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame-error_margin)
+    if (nanoseconds_passed_this_frame < target_nanoseconds_per_frame)
     {
         u64 nanoseconds_remaining = target_nanoseconds_per_frame - nanoseconds_passed_this_frame;
 
         // nanosleep from testing has an error margin of ~1ms+
         // so we say about 2ms margin.
-        nanoseconds_remaining = nanoseconds_remaining - error_margin;
+        nanoseconds_remaining = nanoseconds_remaining*0.8;
 
         const struct timespec rqtp = (struct timespec)
         {
@@ -223,12 +222,71 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     const auto cv = cross(cu, cw);
     const auto matrix = mat3(cu, cv, cw);
 
+    // Setup edits
+    Edit_Info edit_info = {};
+    edit_info.count = 0;
+
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 0.2, 0.2, 0.2 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_REP, (v3) { 0.5, 1000.0, 0.5 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_BOX, (v3) { 0.0, -1.0, 0.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_RESET };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    // edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 1.0, 1.0 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 4.0, 0.0 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 10 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 1.0, 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_SPHERE, (v3) { 0.0, 0.0, 0.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 0.5, 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_TORUS, (v3) { 0.0, 0.0, 4.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 3 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 1.0, 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_BOX, (v3) { 0.0, 0.0, -4.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    // edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 9 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 0.2, 1.0, 0.0 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 0.0, 8.0 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 7 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 0.0, -8.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+
+
+    // Materials
+    Material materials[32];
+    s32 materialCount = 0;
+    materials[materialCount++] = (Material) { (v3) { 0.3, 0.3, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.4 }, SPEC, 0.0, 0.3, 1.0 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.8, 0.7 }, DIFF, 0.0, 0.3, 0.9 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.5 }, SPEC, 1.0, 0.5, 0.5 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, REFR, 0.0, 0.5, 0.5 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.1, 0.1 }, DIFF, 10.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.3, 0.4, 0.3 }, SPEC, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.1 }, REFR, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, SPEC, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.25, 0.25, 0.8 }, DIFF, 0.0, 0.3, 1 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.1, 0.1 }, DIFF, 1.0, 0.5, 1.0 };
+    materials[materialCount++] = (Material) { (v3) { 0.8, 0.1, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.58, 0.38, 0.21 }, DIFF, 0.0, 0.1, 0.01 };
+
+    // Setup lights 
     Light_Info light_info;
     light_info.count = 0;
     light_info.lights[light_info.count++] = (Light) { (v3) { 1000, 1000, 0 }, (v3) { 0.7, 0.5, 0.3 }, 1000.0 };
-    light_info.lights[light_info.count++] = (Light) { (v3) { 0, 100, 0 }, (v3) { 0.7, 0.76, 0.95 }, 1000.0 };
-
     light_info.lights[light_info.count - 1].pos = (v3) { static_cast<float>(sin(time) * 100.0), 100, static_cast<float>(cos(time) * 100) };
+    light_info.lights[light_info.count++] = (Light) { (v3) { 0, 100, 0 }, (v3) { 0.7, 0.76, 0.95 }, 1000.0 };
 
     Uniform uniform = {
         .camera_position = ro,
@@ -243,8 +301,8 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     auto tasks = std::vector<std::future<void>>();
     tasks.reserve(workload_count);
 
-    s32 col_count = 1;
-    s32 row_count = workload_count;
+    s32 col_count = workload_count/2;
+    s32 row_count = workload_count/2;
 
     const s32 col = width / col_count;
     const s32 row = height / row_count;
@@ -260,6 +318,8 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
                 uber,
                 uniform,
                 light_info,
+                materials,
+                edit_info,
                 pixels,
                 ushort2(x * col, y * row),
                 ushort2((x + 1) * col, (y + 1) * row)
@@ -268,7 +328,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     }
     for (auto& task : tasks) task.get();
 
-    // vsync(30, frame_start_time, swap_buffer_time);
+    // vsync(60, frame_start_time, swap_buffer_time);
     swap_buffers(bitmap);
 
     deltaTime = (get_time() - frame_start_time) / 1e9;
