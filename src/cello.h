@@ -22,6 +22,7 @@
 #define _CELLO_H_
 
 #include "common.h"
+#include "input.cpp"
 
 #define DEFAULT_WINDOW_WIDTH 256
 #define DEFAULT_WINDOW_HEIGHT 256

@@ -28,7 +28,6 @@
 #import <AppKit/AppKit.h>
 
 #include "common.h"
-#include "input.cpp"
 #include "cello.h"
 
 #include <dlfcn.h> // dlopen, dlsym, dlerror

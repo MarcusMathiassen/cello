@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "common.h"
-#include "input.cpp"
 #include "cello.h"
 
 global_variable void (*get_window_size)(s32* w, s32* h);
@@ -105,7 +104,6 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
 
     if (!memory->is_initialized)
     {
-
         game_state->is_running       = true;
         game_state->inputs           = {};
         game_state->start_time       = get_time();
@@ -167,6 +165,16 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     if (inputs->keys[KEY_W] == KEY_PRESSED) process_keyboard(camera, MOVE_FORWARD, deltaTime);
     if (inputs->keys[KEY_E] == KEY_PRESSED) process_keyboard(camera, MOVE_UP, deltaTime);
     if (inputs->keys[KEY_Q] == KEY_PRESSED) process_keyboard(camera, MOVE_DOWN, deltaTime);
+    
+    // foreach(i, events->count)
+    // {
+    //     Event event = events->buffer[i];
+    //     switch(event)
+    //     {
+    //         case WINDOW_RESIZE: break;
+    //         case SHOULD_CLOSE: break;
+    //     }
+    // }
 
     foreach(i, inputs->count)
     {
@@ -209,8 +217,6 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     s64 height = bitmap->height;
     s64 width = bitmap->width;
 
-    u32* pixels = (u32*)bitmap->buffer;
-
     // Calculate camera matrix
     const auto ro = camera->position;
     const auto ta = camera->position + camera->front;
@@ -227,16 +233,16 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     edit_info.count = 0;
 
     edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
-    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 0.2, 0.2, 0.2 } };
-    edit_info.edits[edit_info.count++] = (Edit) { OP_REP, (v3) { 0.5, 1000.0, 0.5 } };
-    edit_info.edits[edit_info.count++] = (Edit) { SD_BOX, (v3) { 0.0, -1.0, 0.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 0.45, 100.0, 0.45 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_REP, (v3) { 1.0, 1000.0, 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_BOX, (v3) { 0.0, -101.0, 0.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { OP_RESET };
     edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
 
-    // edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
-    // edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 1.0, 1.0 } };
-    // edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 4.0, 0.0 } };
-    // edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, (f32)abs(sin(time)), 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 4.0, 0.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
 
     edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 10 } };
     edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 1.0, 1.0 } };
@@ -264,7 +270,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
 
 
     // Materials
-    Material materials[32];
+    Material materials[18];
     s32 materialCount = 0;
     materials[materialCount++] = (Material) { (v3) { 0.3, 0.3, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
     materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.4 }, SPEC, 0.0, 0.3, 1.0 };
@@ -306,6 +312,8 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
 
     const s32 col = width / col_count;
     const s32 row = height / row_count;
+
+    u32* pixels = (u32*)bitmap->buffer;
 
     //
     // Uber kernel CPU
