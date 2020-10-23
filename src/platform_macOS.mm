@@ -61,6 +61,8 @@ internal void maybe_load_game_code()
     if (time_last_changed == new_time_last_changed) return;
     time_last_changed = new_time_last_changed;
 
+    printf("CHANGING!\n");
+
     // We unload the game code first
     unload_game_code();
 
@@ -429,6 +431,12 @@ PLATFORM_API void set_cursor_visibility(b32 is_visible)
     }
 }
 
+
+PLATFORM_API Compile_State get_compile_state()
+{
+    return game_code_dylib ? COMPILE_SUCCESS : COMPILE_FAILURE;
+}
+
 PLATFORM_API void get_window_size(s32* w, s32* h)
 {
     *w = window.contentView.bounds.size.width;
@@ -512,7 +520,6 @@ s32 main(s32 argc, char** argv)
     // So this is all the memory you will get. Keep an eye on it.
     game_memory.permanent_storage_size = MEGABYTES(64);
     game_memory.transient_storage_size = GIGABYTES(1);
-
 #if DEV
     // In DEV mode we expect to get the same memory address every time.
     // This is needed for our compile-while-running development style.
@@ -595,7 +602,6 @@ s32 main(s32 argc, char** argv)
         // CVDisplayLinkStart(displayLink);
 
         // [NSApp run];
-
         while (is_running)
         {
             maybe_load_game_code();
@@ -608,6 +614,7 @@ s32 main(s32 argc, char** argv)
             game_memory.set_cursor_visibility = set_cursor_visibility;
             game_memory.swap_buffers          = swap_buffers;
             game_memory.get_time              = get_time;
+            game_memory.get_compile_state              = get_compile_state;
 
             get_input_info(&game_memory.inputs);
             if (game_update_and_render)

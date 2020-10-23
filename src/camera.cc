@@ -24,7 +24,7 @@
 
 #define YAW         -123.8488
 #define PITCH       -11.60
-#define SPEED        20.0
+#define SPEED        30.0
 #define SENSITIVTY   3.0
 #define ZOOM         1.0
 #define MIN_ZOOM    0.4 

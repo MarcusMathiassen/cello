@@ -16,8 +16,8 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE.
-#include "kernel_common.cpp"
+// DEALINGS IsN THE SOFTWARE.
+#include "kernel_common.cc"
 
 METAL_INTERNAL v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, v3 N)
 {
@@ -39,7 +39,7 @@ METAL_INTERNAL v3 directLight(const METAL(constant) Light& light, v3 eye, v3 P, 
     {
         const v3 halfVector = normalize(L + V);
         const f32 NdotH = saturate(dot(N, halfVector));
-        const f32 glossiness = 16.0;
+        const f32 glossiness = 32.0;
         const f32 specularIntensity = pow(NdotH, glossiness * glossiness);
         const f32 specularIntensitySmooth = specularIntensity;
         const v3 specColor =light.color;
@@ -78,6 +78,107 @@ METAL_INTERNAL v3 ambientLight(v3 P, v3 N)
 }
 
 METAL_INTERNAL METAL(kernel) void
+steps(
+    METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
+    METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
+    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
+    METAL(device)   u32* pixels             METAL([[buffer(4)]]),
+    ushort2 tid                             METAL([[thread_position_in_grid]]),
+    ushort2 gs                              METAL([[threads_per_grid]]))
+{
+    for (u16 y = tid.y; y < gs.y; ++y)
+    for (u16 x = tid.x; x < gs.x; ++x)
+    {
+        v2 uv = SS2NDC(v2(x,y), v2(uniform.viewport_size.x,uniform.viewport_size.y));
+
+        uv.y *= -1; // we are software rendering, so we need to flip it manually.
+
+        const v3 ro = uniform.camera_position;
+        const v3 rd = uniform.camera_matrix * normalize(v3(uv.x, uv.y, uniform.camera_zoom));
+
+        const auto scene = (Scene) { edit_info };
+
+        const f32 farClip = (distance(ro, rd * v3(40,40,40)));
+        const s32 maxStepCount = 256;
+        const f32 nearClip = PIXEL_RADIUS;
+
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+
+        v3 color = v3(1,1,1)*0.0;
+
+        if (hit.t < farClip)
+        {
+            f32 xxx = (f32)hit.steps / maxStepCount;
+            color = v3(0.0,xxx,0.0);
+        }
+
+
+        // color = OECF_sRGBFast(color);
+        // color = ACES(color);
+
+        const u8 R = saturate(color.x) * 255.0;
+        const u8 G = saturate(color.y) * 255.0;
+        const u8 B = saturate(color.z) * 255.0;
+        const u8 A = 255;
+
+        const s32 index = y * uniform.viewport_size.x + x;
+        pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+    }
+}
+
+METAL_INTERNAL METAL(kernel) void
+normals(
+    METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
+    METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
+    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
+    METAL(device)   u32* pixels             METAL([[buffer(4)]]),
+    ushort2 tid                             METAL([[thread_position_in_grid]]),
+    ushort2 gs                              METAL([[threads_per_grid]]))
+{
+    for (u16 y = tid.y; y < gs.y; ++y)
+    for (u16 x = tid.x; x < gs.x; ++x)
+    {
+        v2 uv = SS2NDC(v2(x,y), v2(uniform.viewport_size.x,uniform.viewport_size.y));
+
+        uv.y *= -1; // we are software rendering, so we need to flip it manually.
+
+        const v3 ro = uniform.camera_position;
+        const v3 rd = uniform.camera_matrix * normalize(v3(uv.x, uv.y, uniform.camera_zoom));
+
+        const auto scene = (Scene) { edit_info };
+
+        const f32 farClip = (distance(ro, rd * v3(40,40,40)));
+        const s32 maxStepCount = 256;
+        const f32 nearClip = PIXEL_RADIUS;
+
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+
+        v3 color = v3(1,1,1)*0.0;
+
+        if (hit.t < farClip)
+        {
+            v3 P = ro + rd * hit.t;
+            v3 N = calcNormal(P, scene);
+            color = N;
+        }
+
+        // color = OECF_sRGBFast(color);
+        // color = ACES(color);
+
+        const u8 R = saturate(color.x) * 255.0;
+        const u8 G = saturate(color.y) * 255.0;
+        const u8 B = saturate(color.z) * 255.0;
+        const u8 A = 255;
+
+        const s32 index = y * uniform.viewport_size.x + x;
+        pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+    }
+}
+
+
+METAL_INTERNAL METAL(kernel) void
 uber(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
@@ -99,17 +200,17 @@ uber(
 
         const auto scene = (Scene) { edit_info };
 
-        const f32 farClip = (distance(ro, rd * v3(20,20,20)));
+        const f32 farClip = (distance(ro, rd * v3(50,50,50)));
         const s32 maxStepCount = 256;
         const f32 nearClip = PIXEL_RADIUS;
 
         const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
 
-        v3 color = v3(1,1,1)*0.001;
+        v3 color = v3(1,1,1)*0.0;
 
         if (hit.t < farClip)
         {
-            v3 P = ro+rd*hit.t;
+            v3 P = ro + rd * hit.t;
             v3 N = calcNormal(P, scene);
 
             // Shadow
@@ -156,11 +257,63 @@ uber(
         //     y == tid.y || 
         //     x == uniform.viewport_size.x-1 ||
         //     y == uniform.viewport_size.y-1) {
-        //     color = v3(1,1,1);
+        //     color = v3(0.0, 1.0, 0.0) * 0.5;
         // }
 
         // color = OECF_sRGBFast(color);
         color = ACES(color);
+
+        const u8 R = saturate(color.x) * 255.0;
+        const u8 G = saturate(color.y) * 255.0;
+        const u8 B = saturate(color.z) * 255.0;
+        const u8 A = 255;
+
+        const s32 index = y * uniform.viewport_size.x + x;
+        pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+    }
+}
+
+METAL_INTERNAL METAL(kernel) void
+clear(
+    METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
+    METAL(constant) v4 color                METAL([[buffer(1)]]),
+    METAL(device)   u32* pixels             METAL([[buffer(2)]]),
+    ushort2 tid                             METAL([[thread_position_in_grid]]),
+    ushort2 gs                              METAL([[threads_per_grid]]))
+{
+    for (u16 y = tid.y; y < gs.y; ++y)
+    for (u16 x = tid.x; x < gs.x; ++x)
+    {
+        const u8 R = saturate(color.x) * 255.0;
+        const u8 G = saturate(color.y) * 255.0;
+        const u8 B = saturate(color.z) * 255.0;
+        const u8 A = saturate(color.w) * 255.0;
+
+        const s32 index = y * uniform.viewport_size.x + x;
+        pixels[index] = ((R << 0) | (G << 8) | (B << 16) | (A << 24));
+    }
+}
+
+METAL_INTERNAL METAL(kernel) void
+tiles(
+    METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
+    METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
+    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
+    METAL(device)   u32* pixels             METAL([[buffer(4)]]),
+    ushort2 tid                             METAL([[thread_position_in_grid]]),
+    ushort2 gs                              METAL([[threads_per_grid]]))
+{
+    for (u16 y = tid.y; y < gs.y; ++y)
+    for (u16 x = tid.x; x < gs.x; ++x)
+    {
+        v3 color = v3(0.0, 0.0, 0.0);
+        if (x == tid.x ||
+            y == tid.y || 
+            x == uniform.viewport_size.x-1 ||
+            y == uniform.viewport_size.y-1) {
+            color = v3(0.0, 1.0, 0.0) * 0.5;
+        } else continue;
 
         const u8 R = saturate(color.x) * 255.0;
         const u8 G = saturate(color.y) * 255.0;

@@ -12,7 +12,7 @@ mode=-DDEV=${debugMode}
 
 # Build game dylib
 dylibname=./cello.dylib
-$compiler -g -dynamiclib ./src/cello.cpp -std=$std $olvl $flags $mode -o $dylibname
+$compiler -g -dynamiclib ./src/cello.cc -std=$std $olvl $flags $mode -o $dylibname
 
 # Build platform layer
 $compiler -g $platform_layer -std=$std $olvl $flags $mode $platform_frameworks -o ./cello

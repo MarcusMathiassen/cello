@@ -18,53 +18,17 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#ifndef _CELLO_H_
-#define _CELLO_H_
-
-#include "common.h"
-#include "input.cc"
-
-#define DEFAULT_WINDOW_WIDTH 640
-#define DEFAULT_WINDOW_HEIGHT 480
-
-typedef enum {
-    COMPILE_SUCCESS,
-    COMPILE_FAILURE,
-} Compile_State;
-
-struct Bitmap
+typedef struct
 {
-    u8* buffer;
-    s32 width;
-    s32 height;
-    s32 bytesPerPixel;
-    s32 pitch;
-};
+    f32 x;
+    f32 y;
+} v2;
 
-struct Game_Memory
-{
-    b32 is_initialized;
-    void* permanent_storage;
-    u64 permanent_storage_size;
-    void* transient_storage;
-    u64 transient_storage_size;
-
-    Input_Info inputs;
-
-    void (*get_window_size)(s32* w, s32* h);
-    void (*get_input_info)(Input_Info* inputs);
-    void (*set_cursor_visibility)(b32 is_visible);
-    void (*swap_buffers)(Bitmap* buffer);
-    u64 (*get_time)();
-    Compile_State (*get_compile_state)();
-};
-
-
-// void get_window_size(s32* w, s32* h);
-// void get_input_info(Input_Info* inputs);
-// void set_cursor_visibility(b32 is_visible);
-// void swap_buffers(Bitmap* buffer);
-// u64 get_time();
-// b32 game_update_and_render(Game_Memory *memory);
-
-#endif
+inline static v2 v2_add(v2 a, v2 b) { return (v2) { a.x + b.x, a.y + b.y }; }
+inline static v2 v2_add_scl(v2 a, f32 b) { return (v2) { a.x + b, a.y + b }; }
+inline static v2 v2_sub(v2 a, v2 b) { return (v2) { a.x - b.x, a.y - b.y }; }
+inline static v2 v2_sub_scl(v2 a, f32 b) { return (v2) { a.x - b, a.y - b }; }
+inline static v2 v2_mul(v2 a, v2 b) { return (v2) { a.x * b.x, a.y * b.y }; }
+inline static v2 v2_mul_scl(v2 a, f32 b) { return (v2) { a.x * b, a.y * b }; }
+inline static v2 v2_div(v2 a, v2 b) { return (v2) { a.x / b.x, a.y / b.y }; }
+inline static v2 v2_div_scl(v2 a, f32 b) { return (v2) { a.x / b, a.y / b }; }

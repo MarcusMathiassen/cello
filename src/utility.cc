@@ -18,53 +18,22 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#ifndef _CELLO_H_
-#define _CELLO_H_
-
 #include "common.h"
-#include "input.cc"
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
 
-#define DEFAULT_WINDOW_WIDTH 640
-#define DEFAULT_WINDOW_HEIGHT 480
-
-typedef enum {
-    COMPILE_SUCCESS,
-    COMPILE_FAILURE,
-} Compile_State;
-
-struct Bitmap
+internal u8*
+strf(const char* fmt, ...)
 {
-    u8* buffer;
-    s32 width;
-    s32 height;
-    s32 bytesPerPixel;
-    s32 pitch;
-};
-
-struct Game_Memory
-{
-    b32 is_initialized;
-    void* permanent_storage;
-    u64 permanent_storage_size;
-    void* transient_storage;
-    u64 transient_storage_size;
-
-    Input_Info inputs;
-
-    void (*get_window_size)(s32* w, s32* h);
-    void (*get_input_info)(Input_Info* inputs);
-    void (*set_cursor_visibility)(b32 is_visible);
-    void (*swap_buffers)(Bitmap* buffer);
-    u64 (*get_time)();
-    Compile_State (*get_compile_state)();
-};
-
-
-// void get_window_size(s32* w, s32* h);
-// void get_input_info(Input_Info* inputs);
-// void set_cursor_visibility(b32 is_visible);
-// void swap_buffers(Bitmap* buffer);
-// u64 get_time();
-// b32 game_update_and_render(Game_Memory *memory);
-
-#endif
+    va_list args;
+    va_start(args, fmt);
+    s64 n = 1 + vsnprintf(0, 0, (const char*)fmt, args);
+    va_end(args);
+    u8* str = (u8*)malloc(n + 1);
+    va_start(args, (const char*)fmt);
+    vsnprintf((char*)str, n, (const char*)fmt, args);
+    va_end(args);
+    str[n] = '\0';
+    return str;
+}
