@@ -24,8 +24,8 @@
 #include "common.h"
 #include "input.cc"
 
-#define DEFAULT_WINDOW_WIDTH 640
-#define DEFAULT_WINDOW_HEIGHT 480
+#define DEFAULT_WINDOW_WIDTH 200
+#define DEFAULT_WINDOW_HEIGHT 200
 
 typedef enum {
     COMPILE_SUCCESS,

@@ -59,6 +59,8 @@ using simd::fmod;
 using simd::fabs;
 using simd::sign;
 using simd::mix;
+using simd::reflect;
+using simd::refract;
 
 // typedef vector_half2 h2;
 // typedef vector_half3 h3;

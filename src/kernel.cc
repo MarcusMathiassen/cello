@@ -66,7 +66,7 @@ METAL_INTERNAL v3 Irradiance_SphericalHarmonics(v3 n)
     // (http://www.hdrlabs.com/sibl/archive.html)
     return max(
         v3(0.754554516862612, 0.748542953903366, 0.790921515418539)
-        + v3(0.3, 0.3, 0.3) * (n.y) + v3(0.35, 0.36, 0.35) * (n.z) + 
+        + v3(0.3, 0.3, 0.3) * (n.y) + v3(0.35, 0.36, 0.35) * (n.z) +
         v3(-0.2, -0.24, -0.24) * (n.x),
         v3(0,0,0));
 }
@@ -81,7 +81,7 @@ METAL_INTERNAL METAL(kernel) void
 steps(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
-    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Material* materials     METAL([[buffer(2)]]),
     METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
     METAL(device)   u32* pixels             METAL([[buffer(4)]]),
     ushort2 tid                             METAL([[thread_position_in_grid]]),
@@ -103,7 +103,8 @@ steps(
         const s32 maxStepCount = 256;
         const f32 nearClip = PIXEL_RADIUS;
 
-        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+        const f32 side = 1.0;
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, side, scene);
 
         v3 color = v3(1,1,1)*0.0;
 
@@ -131,7 +132,7 @@ METAL_INTERNAL METAL(kernel) void
 normals(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
-    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Material* materials     METAL([[buffer(2)]]),
     METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
     METAL(device)   u32* pixels             METAL([[buffer(4)]]),
     ushort2 tid                             METAL([[thread_position_in_grid]]),
@@ -153,7 +154,8 @@ normals(
         const s32 maxStepCount = 256;
         const f32 nearClip = PIXEL_RADIUS;
 
-        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+        const f32 side = 1.0;
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, side, scene);
 
         v3 color = v3(1,1,1)*0.0;
 
@@ -178,11 +180,75 @@ normals(
 }
 
 
+METAL_INTERNAL v3 rayColor(
+    Uniform& uniform,
+    Light_Info& light_info,
+    Material* materials,
+    Edit_Info& edit_info,
+    v3 ro, v3 rd)
+{
+    const auto scene = (Scene) { edit_info };
+
+    const f32 farClip = 100.0; //(distance(ro, rd * v3(50,50,50)));
+    const s32 maxStepCount = 128;
+    const f32 nearClip = PIXEL_RADIUS;
+
+    const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, 1.0, scene);
+
+    v3 color = v3(1,1,1)*0.0;
+
+    if (hit.t < farClip)
+    {
+        v3 P = ro + rd * hit.t;
+        v3 N = calcNormal(P, scene);
+
+        // Shadow
+        f32 sha = 0.0;
+        {
+            for (s8 i = 0; i < light_info.count; ++i)
+            {
+                const METAL(constant) auto& light = light_info.lights[0]; // only the sun casts shadow
+                const v3 L = normalize(light.pos - P);
+                sha += shadow(P+N*PIXEL_RADIUS, L, nearClip, farClip, scene);
+            }
+        }
+
+        // Ambient Occlusion
+        f32 ao = 0.0;
+        {
+            ao = ambientOcclusion(P, N, scene);
+        }
+
+        // Direct Illumination
+        v3 directLightContrib = {};
+        {
+            const v3 eye = ro;
+            for (s8 i = 0; i < light_info.count; ++i) {
+                const METAL(constant) auto& light = light_info.lights[i];
+                directLightContrib += directLight(light, eye, P, N);
+            }
+        }
+
+        // Ambient Illumination
+        v3 ambientLightContrib = {};
+        {
+            ambientLightContrib = ambientLight(P, N);
+        }
+
+        {
+            const v3 albedo = materials[hit.material_id].color;
+            color = albedo * (sha * directLightContrib + ao * ambientLightContrib);
+        }
+    }
+
+    return color;
+}
+
 METAL_INTERNAL METAL(kernel) void
 uber(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
-    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Material* materials     METAL([[buffer(2)]]),
     METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
     METAL(device)   u32* pixels             METAL([[buffer(4)]]),
     ushort2 tid                             METAL([[thread_position_in_grid]]),
@@ -200,11 +266,12 @@ uber(
 
         const auto scene = (Scene) { edit_info };
 
-        const f32 farClip = (distance(ro, rd * v3(50,50,50)));
-        const s32 maxStepCount = 256;
+        const f32 farClip = 100.0; //(distance(ro, rd * v3(50,50,50)));
+        const s32 maxStepCount = 128;
         const f32 nearClip = PIXEL_RADIUS;
 
-        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, scene);
+        const f32 side = 1.0;
+        const auto hit = castRay(ro, rd, maxStepCount, nearClip, farClip, side, scene);
 
         v3 color = v3(1,1,1)*0.0;
 
@@ -216,12 +283,12 @@ uber(
             // Shadow
             f32 sha = 0.0;
             {
-                // for (s8 i = 0; i < light_info.count; ++i)
-                // {
-                const METAL(constant) auto& light = light_info.lights[0]; // only the sun casts shadow
-                const v3 L = normalize(light.pos - P);
-                sha += shadow(P+N*PIXEL_RADIUS, L, nearClip, farClip, scene);
-                // }
+                for (s8 i = 0; i < light_info.count; ++i)
+                {
+                    const METAL(constant) auto& light = light_info.lights[0]; // only the sun casts shadow
+                    const v3 L = normalize(light.pos - P);
+                    sha += shadow(P+N*PIXEL_RADIUS, L, nearClip, farClip, scene);
+                }
             }
 
             // Ambient Occlusion
@@ -246,15 +313,42 @@ uber(
                 ambientLightContrib = ambientLight(P, N);
             }
 
-            {
-                const v3 albedo = materials[hit.material_id].color;
-                color = albedo * (sha * directLightContrib + ao * ambientLightContrib);
+            const MaterialKind kind = materials[hit.material_id].kind;
+            const v3 albedo = materials[hit.material_id].color;
+            switch (kind) {
+                case DIFF: {
+                    color = albedo * (sha * directLightContrib + ao * ambientLightContrib);
+                    break;
+                }
+                case SPEC:
+                    break;
+                case REFR: {
+                    float IOR = 1.45; // index of refraction
+                    v3 R = reflect(rd, N);
+                    v3 rd_in = refract(rd , N, 1.0/IOR); // ray dir when entering
+                    v3 P_enter = P - N*PIXEL_RADIUS*3.0;
+                    const auto hit_in = castRay(P_enter, rd_in, maxStepCount, nearClip, farClip, -1.0, scene);
+                    v3 P_exit = P_enter + rd_in * hit_in.t;
+                    v3 N_exit = -calcNormal(P_exit, scene);
+                    v3 rd_out = refract(rd_in, N_exit, IOR);
+                    if (dot(rd_out, rd_out) == 0.0)
+                        rd_out = reflect(rd_in, N_exit);
+                    f32 dens = 0.5;
+                    f32 optDist = exp(-hit_in.t*dens);
+                    f32 fresnel = pow(1.0 + dot(rd, N), 3.0);
+
+                    v3 refrColor = albedo * optDist * rayColor(uniform, light_info, materials, edit_info, P_exit, rd_out);
+                    v3 reflColor = rayColor(uniform, light_info, materials, edit_info, P + N*PIXEL_RADIUS*3.0, R);
+                    color = mix(refrColor, reflColor, (v3){fresnel,fresnel,fresnel});
+
+                    break;
+                }
             }
         }
 
         // Draw workload grid
         // if (x == tid.x ||
-        //     y == tid.y || 
+        //     y == tid.y ||
         //     x == uniform.viewport_size.x-1 ||
         //     y == uniform.viewport_size.y-1) {
         //     color = v3(0.0, 1.0, 0.0) * 0.5;
@@ -298,7 +392,7 @@ METAL_INTERNAL METAL(kernel) void
 tiles(
     METAL(constant) Uniform& uniform        METAL([[buffer(0)]]),
     METAL(constant) Light_Info& light_info  METAL([[buffer(1)]]),
-    METAL(constant) Material* materials     METAL([[buffer(2)]]), 
+    METAL(constant) Material* materials     METAL([[buffer(2)]]),
     METAL(constant) Edit_Info& edit_info    METAL([[buffer(3)]]),
     METAL(device)   u32* pixels             METAL([[buffer(4)]]),
     ushort2 tid                             METAL([[thread_position_in_grid]]),
@@ -309,7 +403,7 @@ tiles(
     {
         v3 color = v3(0.0, 0.0, 0.0);
         if (x == tid.x ||
-            y == tid.y || 
+            y == tid.y ||
             x == uniform.viewport_size.x-1 ||
             y == uniform.viewport_size.y-1) {
             color = v3(0.0, 1.0, 0.0) * 0.5;

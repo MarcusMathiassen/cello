@@ -51,6 +51,13 @@ inline static f32   v3_length    (v3 a)              { return sqrt(v3_dot(a, a))
 inline static v3    v3_normalize (v3 a)              { return v3_div_scl(a, v3_length(a)); }
 inline static f32   v3_distance  (v3 a, v3 b)        { return sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)); }
 inline static v3    v3_cross     (v3 a, v3 b)        { return (v3) { a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x }; }
+inline static v3    v3_reflect   (v3 v, v3 n)        { return v3_sub(v, v3_mul_scl(n, v3_dot(v, n) * 2.0)); }
+inline static v3    v3_refract   (v3 v, v3 n, f32 r) { 
+    const float d = v3_dot(n, v);
+    const float k = 1.0 - r * r * (1.0 - d*d);
+    if (k < 0.0) return (v3) { 0.0, 0.0, 0.0 };
+    return v3_sub(v3_mul_scl(v, r), v3_mul_scl(n, (r * d + sqrt(k))));
+}
 
 typedef struct { f32 x,y,z,w; } v4;
 inline static v4    v4_add       (v4 a, v4 b)        { return (v4) { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w }; }

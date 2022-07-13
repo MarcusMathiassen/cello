@@ -1,4 +1,3 @@
-// Copyright (c) 2020 Marcus Mathiassen
 
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -96,7 +95,7 @@ internal void allocate_bitmap(Bitmap* bitmap)
 extern "C" b32 game_update_and_render(Game_Memory *memory)
 {
     Game_State* game_state = (Game_State*)memory->permanent_storage;
-        
+
     // First time through we initialize game state to its
     // default state.
     //
@@ -144,14 +143,14 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     //
     // Pull out game state for easy access
     //
-    b32 is_running         =  game_state->is_running; 
-    Input_Info* inputs     =  &memory->inputs;  //&game_state->inputs; 
-    u64 start_time         =  game_state->start_time; 
-    u64 swap_buffer_time   =  game_state->swap_buffer_time; 
-    f64 time               =  game_state->time; 
-    f64 fps                =  game_state->fps;  
-    f64 deltaTime          =  game_state->deltaTime; 
-    s32 threadCount        =  game_state->threadCount; 
+    b32 is_running         =  game_state->is_running;
+    Input_Info* inputs     =  &memory->inputs;  //&game_state->inputs;
+    u64 start_time         =  game_state->start_time;
+    u64 swap_buffer_time   =  game_state->swap_buffer_time;
+    f64 time               =  game_state->time;
+    f64 fps                =  game_state->fps;
+    f64 deltaTime          =  game_state->deltaTime;
+    s32 threadCount        =  game_state->threadCount;
     b32 insert_mode        =  game_state->insert_mode;
     b32 debug_mode         =  game_state->debug_mode;
     u8 active_kernel_type  =  game_state->active_kernel_type;
@@ -175,7 +174,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     if (inputs->keys[KEY_W] == KEY_PRESSED) process_keyboard(camera, MOVE_FORWARD, deltaTime);
     if (inputs->keys[KEY_E] == KEY_PRESSED) process_keyboard(camera, MOVE_UP, deltaTime);
     if (inputs->keys[KEY_Q] == KEY_PRESSED) process_keyboard(camera, MOVE_DOWN, deltaTime);
-    
+
     // foreach(i, events->count)
     // {
     //     Event event = events->buffer[i];
@@ -230,7 +229,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
                 f64 ypos = input.cursor.ypos;
                 if (!insert_mode) process_mouse_movement(camera, xpos, ypos, deltaTime);
             } break;
-        }   
+        }
     }
 
     s64 height = bitmap->height;
@@ -252,10 +251,10 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     edit_info.count = 0;
 
     edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 2 } };
-    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 0.45, 100.0, 0.45 } };
-    edit_info.edits[edit_info.count++] = (Edit) { OP_REP, (v3) { 1.0, 1000.0, 1.0 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 10.0, 100.0, 10.0 } };
+    // edit_info.edits[edit_info.count++] = (Edit) { OP_REP, (v3) { 1.0, 1000.0, 1.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { SD_BOX, (v3) { 0.0, -101.0, 0.0 } };
-    edit_info.edits[edit_info.count++] = (Edit) { OP_RESET };
+    // edit_info.edits[edit_info.count++] = (Edit) { OP_RESET };
     edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
 
     edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 4 } };
@@ -268,7 +267,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     edit_info.edits[edit_info.count++] = (Edit) { SD_SPHERE, (v3) { 0.0, 0.0, 0.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
 
-    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 11 } };
+    edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { 4 } };
     edit_info.edits[edit_info.count++] = (Edit) { SET_SIZE, (v3) { 1.0, 0.5, 1.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { SD_TORUS, (v3) { 0.0, 0.0, 4.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
@@ -287,26 +286,32 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { 0.0, 0.0, -8.0 } };
     edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
 
+    for (int i = 0; i < 10; ++i) {
+        edit_info.edits[edit_info.count++] = (Edit) { SET_MATERIAL_ID, (v3) { static_cast<f32>(i) } };
+        edit_info.edits[edit_info.count++] = (Edit) { SD_CAPPED_CYLINDER, (v3) { static_cast<f32>(sin(i) * 10.0), 0.0, static_cast<f32>(cos(i) * 10.0) } };
+        edit_info.edits[edit_info.count++] = (Edit) { OP_UNION };
+    }
+
 
     // Materials
     Material materials[18];
     s32 materialCount = 0;
     materials[materialCount++] = (Material) { (v3) { 0.3, 0.3, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.4 }, SPEC, 0.0, 0.3, 1.0 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.4 }, DIFF, 0.0, 0.3, 1.0 };
     materials[materialCount++] = (Material) { (v3) { 1.0, 0.8, 0.7 }, DIFF, 0.0, 0.3, 0.9 };
-    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.5 }, SPEC, 1.0, 0.5, 0.5 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 0.3, 0.5 }, REFR, 1.0, 0.5, 0.5 };
     materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, REFR, 0.0, 0.5, 0.5 };
     materials[materialCount++] = (Material) { (v3) { 1.0, 0.1, 0.1 }, DIFF, 10.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 0.3, 0.4, 0.3 }, SPEC, 0.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.1 }, REFR, 0.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, SPEC, 0.0, 0.3, 0.2 };
-    materials[materialCount++] = (Material) { (v3) { 0.25, 0.25, 0.8 }, DIFF, 0.0, 0.3, 1 };
-    materials[materialCount++] = (Material) { (v3) { 1.0, 0.1, 0.1 }, DIFF, 1.0, 0.5, 1.0 };
+    materials[materialCount++] = (Material) { (v3) { 0.3, 0.4, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.3 }, REFR, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 0.1, 0.9, 0.1 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, DIFF, 0.0, 0.3, 0.2 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 1.0 }, REFR, 0.0, 0.3, 1 };
+    materials[materialCount++] = (Material) { (v3) { 1.0, 1.0, 0.5 }, DIFF, 1.0, 0.5, 1.0 };
     materials[materialCount++] = (Material) { (v3) { 0.8, 0.1, 0.3 }, DIFF, 0.0, 0.3, 0.2 };
     materials[materialCount++] = (Material) { (v3) { 0.58, 0.38, 0.21 }, DIFF, 0.0, 0.1, 0.01 };
 
-    // Setup lights 
+    // Setup lights
     Light_Info light_info;
     light_info.count = 0;
     light_info.lights[light_info.count++] = (Light) { (v3) { 1000, 1000, 0 }, (v3) { 0.7, 0.5, 0.3 }, 1000.0 };
@@ -353,7 +358,7 @@ extern "C" b32 game_update_and_render(Game_Memory *memory)
     };
 
 
-    
+
     v4 clearColor = (v4){0.0, 0.0, 0.0, 1.0};
     const auto clearTime = runKernel(clear, uniform, clearColor, pixels);
     auto active_kernel = uber;

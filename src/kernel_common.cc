@@ -1,7 +1,33 @@
 #include "common.h"
 #include "shader_common.h"
 
-#define PIXEL_RADIUS 0.0001
+#define PIXEL_RADIUS 0.001
+
+METAL_INTERNAL f32 mod289(f32 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+METAL_INTERNAL v4 mod289(v4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+METAL_INTERNAL v4 perm(v4 x){return mod289(((x * 34.0) + 1.0) * x);}
+
+METAL_INTERNAL f32 noise(v3 p) {
+    v3 a = floor(p);
+    v3 d = p - a;
+    d = d * d * (3.0 - 2.0 * d);
+
+    v4 b = a.xxyy + (v4){0.0, 1.0, 0.0, 1.0};
+    v4 k1 = perm(b.xyxy);
+    v4 k2 = perm(k1.xyxy + b.zzww);
+
+    v4 c = k2 + a.zzzz;
+    v4 k3 = perm(c);
+    v4 k4 = perm(c + 1.0);
+
+    v4 o1 = fract(k3 * (1.0 / 41.0));
+    v4 o2 = fract(k4 * (1.0 / 41.0));
+
+    v4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+    v2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+
+    return o4.y * d.y + o4.x * (1.0 - d.y);
+}
 
 METAL_INTERNAL f32 hash21(v2 p)
 {
@@ -63,12 +89,12 @@ METAL_INTERNAL f32 sdCappedCylinder(v3 p, f32 h, f32 r)
 METAL_INTERNAL f32 sdTorus(v3 p, v2 t)
 {
     v2 q = v2(length(p.xz) - t.x, p.y);
-    return length(q) - t.y;
+    return length(q) - t.y - hash21((v2){p.y, p.z}) * 0.0001;
 }
 
 METAL_INTERNAL f32 sdSphere(v3 p, f32 s)
 {
-    return length(p) - s;
+    return length(p) - s - hash21((v2){p.y, p.z}) * 0.001;
 }
 
 METAL_INTERNAL f32 dot2(v3 v)
@@ -225,16 +251,17 @@ METAL_INTERNAL v3 calcNormal(v3 p, T scene)
 }
 
 template <class T>
-METAL_INTERNAL Hit castRay(v3 ro, v3 rd, s32 steps, f32 t_min, f32 t_max, T scene)
+METAL_INTERNAL Hit castRay(v3 ro, v3 rd, s32 steps, f32 t_min, f32 t_max, f32 side, T scene)
 {
-    f32 t = t_min;
-    for (s32 i = 0; i < steps && t < t_max; ++i)
+    Hit hit = { t_min, 0, 0 };
+    for (s32 i = 0; i < steps && (hit.t < t_max || abs(hit.t) < t_min); ++i)
     {
-        const v2 r = map(ro+rd*t, scene);
-        if (r.x < t_min) return (Hit){ (t), (s16)(r.y), (s16)(i) };
-        t += r.x;
+        const v2 r = map(ro+rd*hit.t, scene);
+        hit.t += r.x * side;
+        hit.material_id = (s16)(r.y);
+        hit.steps = (s16)(i);
     }
-    return (Hit){ FLT_MAX, 0, 0 };
+    return hit;
 }
 
 METAL_INTERNAL v3 OECF_sRGBFast(v3 linear)
