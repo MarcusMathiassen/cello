@@ -6,7 +6,7 @@ olvl=-O3
 compiler=clang++
 platform_frameworks=-framework\ AppKit\ -framework\ QuartzCore
 flags=-fvectorize\ -fno-exceptions\ -fno-rtti\ -Wno-writable-strings #\ -Wall\ -Wextra\ -fsanitize=address\ -fno-omit-frame-pointer
-std=c++2a
+std=c++17
 debugMode=0
 mode=-DDEV=${debugMode}
 target=arm64-apple-macos11
